@@ -23,7 +23,23 @@ import {
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import Modal from '@/components/ui/Modal'
-import { Recipe } from '@/types'
+// Tipo Recipe que coincide con la API del backend
+interface Recipe {
+  recipe_id: number
+  name: string
+  description?: string
+  difficulty: 'easy' | 'medium' | 'hard'
+  prep_time?: number
+  servings: number
+  production_servings?: number
+  cost_per_serving?: number
+  categories?: string
+  instructions?: string
+  image_url?: string
+  allergens?: string[]
+  created_at: string
+  updated_at: string
+}
 import { useToastHelpers } from '@/context/ToastContext'
 
 interface Event {
@@ -1131,8 +1147,8 @@ export default function EventDetailPage() {
                                 <p className="text-sm text-gray-500 mt-1">{recipe.description}</p>
                               )}
                               <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                                <span>👨‍🍳 {recipe.difficulty_level}</span>
-                                <span>⏱️ {recipe.prep_time_minutes + recipe.cook_time_minutes} min</span>
+                                <span>👨‍🍳 {recipe.difficulty || 'N/A'}</span>
+                                <span>⏱️ {recipe.prep_time ? `${recipe.prep_time} min` : 'N/A'}</span>
                                 <span>🍽️ {recipe.servings} porciones</span>
                                 <span>💰 €{(Number(recipe.cost_per_serving) || 0).toFixed(2)}/porción</span>
                               </div>

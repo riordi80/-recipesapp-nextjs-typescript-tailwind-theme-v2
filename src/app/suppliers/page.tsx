@@ -19,6 +19,8 @@ import {
   Package
 } from 'lucide-react'
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import { useToastHelpers } from '@/context/ToastContext'
 
 interface Supplier {
   supplier_id: number
@@ -40,6 +42,13 @@ export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  
+  // Toast helpers
+  const { success, error: showError } = useToastHelpers()
+  
+  // Delete modal state
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [currentSupplier, setCurrentSupplier] = useState<Supplier | null>(null)
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('')
@@ -80,6 +89,32 @@ export default function SuppliersPage() {
       setStats(response.data)
     } catch (err: unknown) {
       console.error('Error loading stats:', err)
+    }
+  }
+
+  // Delete modal handlers
+  const openDeleteModal = (supplier: Supplier) => {
+    setCurrentSupplier(supplier)
+    setIsDeleteOpen(true)
+  }
+
+  const handleDelete = async () => {
+    if (!currentSupplier) return
+    
+    try {
+      await apiDelete(`/suppliers/${currentSupplier.supplier_id}`)
+      // Refresh suppliers after deletion
+      await loadSuppliers()
+      setIsDeleteOpen(false)
+      setCurrentSupplier(null)
+      
+      // Show success toast
+      success(`Proveedor "${currentSupplier.name}" eliminado correctamente`, 'Proveedor Eliminado')
+    } catch (error) {
+      console.error('Error al eliminar proveedor:', error)
+      // Show error toast
+      showError('No se pudo eliminar el proveedor. Intente nuevamente.', 'Error al Eliminar')
+      // Keep modal open on error
     }
   }
 
@@ -262,9 +297,12 @@ export default function SuppliersPage() {
                         </div>
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
+                        <Link 
+                          href={`/suppliers/${supplier.supplier_id}`}
+                          className="text-sm font-medium text-gray-900 hover:text-orange-600 transition-colors cursor-pointer"
+                        >
                           {supplier.name}
-                        </div>
+                        </Link>
                         {supplier.contact_person && (
                           <div className="text-sm text-gray-500">
                             {supplier.contact_person}
@@ -332,13 +370,25 @@ export default function SuppliersPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900 p-1 rounded">
+                      <Link 
+                        href={`/suppliers/${supplier.supplier_id}`}
+                        className="text-blue-600 hover:text-blue-900 p-1 rounded transition-colors"
+                        title="Ver proveedor"
+                      >
                         <Eye className="h-4 w-4" />
-                      </button>
-                      <button className="text-orange-600 hover:text-orange-900 p-1 rounded">
+                      </Link>
+                      <Link 
+                        href={`/suppliers/${supplier.supplier_id}`}
+                        className="text-orange-600 hover:text-orange-900 p-1 rounded transition-colors"
+                        title="Editar proveedor"
+                      >
                         <Edit className="h-4 w-4" />
-                      </button>
-                      <button className="text-red-600 hover:text-red-900 p-1 rounded">
+                      </Link>
+                      <button 
+                        onClick={() => openDeleteModal(supplier)}
+                        className="text-red-600 hover:text-red-900 p-1 rounded transition-colors"
+                        title="Eliminar proveedor"
+                      >
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
@@ -375,6 +425,18 @@ export default function SuppliersPage() {
           Mostrando {filteredSuppliers.length} de {suppliers.length} proveedores
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isDeleteOpen}
+        onClose={() => setIsDeleteOpen(false)}
+        onConfirm={handleDelete}
+        title="Confirmar eliminación"
+        message={`¿Seguro que deseas eliminar el proveedor "${currentSupplier?.name}"?`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        type="danger"
+      />
     </div>
   )
 }

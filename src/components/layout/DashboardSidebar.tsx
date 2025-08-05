@@ -20,6 +20,7 @@ import {
   Volume2,
   VolumeX,
   Menu,
+  Truck,
   X
 } from 'lucide-react'
 import { clsx } from 'clsx'
@@ -42,6 +43,14 @@ const navigation = [
     children: [
       { name: 'Lista Recetas', href: '/recipes' },
       { name: 'Categorías', href: '/recipes/categories' }
+    ]
+  },
+  { 
+    name: 'Pedidos', 
+    href: '/orders', 
+    icon: Truck,
+    children: [
+      { name: 'Lista Pedidos', href: '/orders' }
     ]
   },
   { 

@@ -73,13 +73,12 @@ const difficultyColors = {
 
 export default function RecipesPage() {
   const [recipes, setRecipes] = useState<Recipe[]>([])
-  const [loading, setLoading] = useState(true)
   const [, setError] = useState<string | null>(null)
   
   // Toast helpers
   const { success, error: showError } = useToastHelpers()
   const [view, setView] = useState<'list' | 'grid'>('list')
-  const [isViewInitialized, setIsViewInitialized] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(false)
   
   // Advanced Filters
   const [searchText, setSearchText] = useState('')
@@ -108,19 +107,29 @@ export default function RecipesPage() {
   ]
   const prepTimeOptions = [15, 30, 45, 60, 90, 120]
 
-  // Initialize view from localStorage
+  // Initialize app - single effect to prevent multiple renders
   useEffect(() => {
-    const savedView = localStorage.getItem('recipes-view-preference') as 'list' | 'grid'
-    if (savedView) {
-      setView(savedView)
-    }
-    setIsViewInitialized(true)
-  }, [])
+    const initializeApp = async () => {
+      try {
+        // Initialize view from localStorage
+        const savedView = localStorage.getItem('recipes-view-preference') as 'list' | 'grid'
+        if (savedView) {
+          setView(savedView)
+        }
 
-  // Load initial data
-  useEffect(() => {
-    loadFilterOptions()
-    loadRecipes()
+        // Load filter options and initial recipes in parallel
+        await Promise.all([
+          loadFilterOptions(),
+          loadRecipes()
+        ])
+      } catch (error) {
+        console.error('Error initializing app:', error)
+      } finally {
+        setIsInitialized(true)
+      }
+    }
+
+    initializeApp()
   }, [])
 
   // Load filter options from API
@@ -150,7 +159,6 @@ export default function RecipesPage() {
 
   const loadRecipes = async () => {
     try {
-      setLoading(true)
       const params = new URLSearchParams()
       
       // Apply all filters
@@ -167,19 +175,19 @@ export default function RecipesPage() {
     } catch (err: unknown) {
       setError('Error al cargar recetas')
       console.error('Error loading recipes:', err)
-    } finally {
-      setLoading(false)
     }
   }
 
-  // Debounced filter effect
+  // Debounced filter effect - only run after initialization
   useEffect(() => {
+    if (!isInitialized) return
+
     const timeoutId = setTimeout(() => {
       loadRecipes()
     }, 300) // Debounce all filters
 
     return () => clearTimeout(timeoutId)
-  }, [searchText, selectedCategory, selectedDifficulty, selectedPrepTime, selectedIngredient, selectedAllergens])
+  }, [searchText, selectedCategory, selectedDifficulty, selectedPrepTime, selectedIngredient, selectedAllergens, isInitialized])
 
   // Use recipes directly from API (server-side filtering)
   const filteredRecipes = recipes
@@ -256,7 +264,7 @@ export default function RecipesPage() {
     }
   }
 
-  if (loading || !isViewInitialized) {
+  if (!isInitialized) {
     return (
       <div className="p-6">
         <div className="animate-pulse space-y-4">
@@ -473,7 +481,7 @@ export default function RecipesPage() {
           </div>
 
           {/* Empty State - Table */}
-          {filteredRecipes.length === 0 && !loading && (
+          {filteredRecipes.length === 0 && isInitialized && (
             <div className="text-center py-12">
               <BookOpen className="h-12 w-12 mx-auto text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -575,7 +583,7 @@ export default function RecipesPage() {
           ))}
 
           {/* Empty State - Grid */}
-          {filteredRecipes.length === 0 && !loading && (
+          {filteredRecipes.length === 0 && isInitialized && (
             <div className="col-span-full text-center py-12">
               <BookOpen className="h-12 w-12 mx-auto text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">

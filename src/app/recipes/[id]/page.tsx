@@ -13,7 +13,7 @@ import {
   Users, 
   Euro,
   ChefHat,
-  Wheat,
+  AlertTriangle,
   Heart,
   Package,
   Info
@@ -1427,7 +1427,7 @@ export default function RecipeDetailPage() {
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                   <div className="bg-orange-100 p-2 rounded-lg">
-                    <Wheat className="h-5 w-5 text-orange-600" />
+                    <AlertTriangle className="h-5 w-5 text-orange-600" />
                   </div>
                   Alérgenos
                 </h3>

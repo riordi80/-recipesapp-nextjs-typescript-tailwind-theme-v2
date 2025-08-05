@@ -261,18 +261,25 @@ export default function EventsPage() {
               {filteredEvents.map((event) => (
                 <tr key={event.event_id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <Link 
-                        href={`/events/${event.event_id}`}
-                        className="text-sm font-medium text-gray-900 hover:text-orange-600 transition-colors"
-                      >
-                        {event.name}
-                      </Link>
-                      {event.description && (
-                        <div className="text-sm text-gray-500 truncate max-w-48">
-                          {event.description}
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0 h-12 w-12">
+                        <div className="h-12 w-12 rounded-lg bg-orange-100 flex items-center justify-center">
+                          <Calendar className="h-6 w-6 text-orange-600" />
                         </div>
-                      )}
+                      </div>
+                      <div className="ml-4">
+                        <Link 
+                          href={`/events/${event.event_id}`}
+                          className="text-sm font-medium text-gray-900 hover:text-orange-600 transition-colors"
+                        >
+                          {event.name}
+                        </Link>
+                        {event.description && (
+                          <div className="text-sm text-gray-500 truncate max-w-48">
+                            {event.description}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

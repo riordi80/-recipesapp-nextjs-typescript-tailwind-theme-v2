@@ -537,15 +537,22 @@ export default function IngredientsPage() {
                 return (
                   <tr key={ingredient.ingredient_id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <Link 
-                          href={`/ingredients/${ingredient.ingredient_id}`}
-                          className="text-sm font-medium text-gray-900 hover:text-orange-600 transition-colors"
-                        >
-                          {ingredient.name}
-                        </Link>
-                        <div className="text-sm text-gray-500">
-                          {ingredient.category}
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-12 w-12">
+                          <div className="h-12 w-12 rounded-lg bg-orange-100 flex items-center justify-center">
+                            <Package className="h-6 w-6 text-orange-600" />
+                          </div>
+                        </div>
+                        <div className="ml-4">
+                          <Link 
+                            href={`/ingredients/${ingredient.ingredient_id}`}
+                            className="text-sm font-medium text-gray-900 hover:text-orange-600 transition-colors"
+                          >
+                            {ingredient.name}
+                          </Link>
+                          <div className="text-sm text-gray-500">
+                            {ingredient.category}
+                          </div>
                         </div>
                       </div>
                     </td>
