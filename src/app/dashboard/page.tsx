@@ -1,7 +1,7 @@
 'use client'
 
 import { useAuth } from '@/context/AuthContext'
-import { LayoutDashboard, BookOpen, Package, Users, Calendar } from 'lucide-react'
+import { LayoutDashboard, BookOpen, Package, Users, Calendar, Clock, Plus } from 'lucide-react'
 
 export default function DashboardPage() {
   const { user } = useAuth()
@@ -10,34 +10,22 @@ export default function DashboardPage() {
     {
       name: 'Total Recetas',
       value: '124',
-      icon: BookOpen,
-      color: 'bg-blue-500',
-      bgColor: 'bg-blue-50',
-      textColor: 'text-blue-600'
+      icon: BookOpen
     },
     {
       name: 'Ingredientes',
       value: '456',
-      icon: Package,
-      color: 'bg-green-500',
-      bgColor: 'bg-green-50',
-      textColor: 'text-green-600'
+      icon: Package
     },
     {
       name: 'Proveedores',
       value: '23',
-      icon: Users,
-      color: 'bg-purple-500',
-      bgColor: 'bg-purple-50',
-      textColor: 'text-purple-600'
+      icon: Users
     },
     {
       name: 'Eventos',
       value: '12',
-      icon: Calendar,
-      color: 'bg-orange-500',
-      bgColor: 'bg-orange-50',
-      textColor: 'text-orange-600'
+      icon: Calendar
     }
   ]
 
@@ -63,8 +51,8 @@ export default function DashboardPage() {
                 <p className="text-sm font-medium text-gray-600">{stat.name}</p>
                 <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
               </div>
-              <div className={`${stat.bgColor} p-3 rounded-full`}>
-                <stat.icon className={`h-6 w-6 ${stat.textColor}`} />
+              <div className="bg-orange-100 p-3 rounded-lg">
+                <stat.icon className="h-6 w-6 text-orange-600" />
               </div>
             </div>
           </div>
@@ -76,7 +64,12 @@ export default function DashboardPage() {
         {/* Recent Activity */}
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">Actividad Reciente</h3>
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <div className="bg-orange-100 p-2 rounded-lg">
+                <Clock className="h-5 w-5 text-orange-600" />
+              </div>
+              Actividad Reciente
+            </h3>
           </div>
           <div className="p-6">
             <div className="space-y-4">
@@ -114,7 +107,12 @@ export default function DashboardPage() {
         {/* Quick Actions */}
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">Acciones Rápidas</h3>
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <div className="bg-orange-100 p-2 rounded-lg">
+                <Plus className="h-5 w-5 text-orange-600" />
+              </div>
+              Acciones Rápidas
+            </h3>
           </div>
           <div className="p-6">
             <div className="grid grid-cols-2 gap-4">

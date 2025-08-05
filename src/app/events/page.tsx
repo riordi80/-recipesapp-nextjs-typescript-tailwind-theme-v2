@@ -66,7 +66,7 @@ export default function EventsPage() {
       const response = await apiGet<Event[]>('/events')
       setEvents(response.data)
       setError(null)
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Error al cargar eventos')
       console.error('Error loading events:', err)
     } finally {
@@ -141,29 +141,50 @@ export default function EventsPage() {
   }
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-8">
+    <>
+      {/* Mobile Header */}
+      <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 sticky top-[60px] z-40">
         <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center space-x-3 mb-2">
-              <Calendar className="h-8 w-8 text-orange-600" />
-              <h1 className="text-3xl font-bold text-gray-900">Eventos</h1>
+          <div className="flex items-center space-x-3">
+            <div className="bg-orange-100 p-2 rounded-lg">
+              <Calendar className="h-5 w-5 text-orange-600" />
             </div>
-            <p className="text-gray-600">
-              Gestiona y organiza todos tus eventos y menús especiales
-            </p>
+            <h1 className="text-lg font-semibold text-gray-900">Eventos</h1>
           </div>
           
           <Link
             href="/events/new"
-            className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+            className="p-2 bg-orange-600 text-white hover:bg-orange-700 rounded-lg transition-colors"
+            title="Nuevo evento"
           >
-            <Plus className="h-5 w-5" />
-            <span>Nuevo Evento</span>
+            <Plus className="h-4 w-4" />
           </Link>
         </div>
       </div>
+
+      <div className="p-6">
+        {/* Desktop Header */}
+        <div className="hidden md:block mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center space-x-3 mb-2">
+                <Calendar className="h-8 w-8 text-orange-600" />
+                <h1 className="text-3xl font-bold text-gray-900">Eventos</h1>
+              </div>
+              <p className="text-gray-600">
+                Gestiona y organiza todos tus eventos y menús especiales
+              </p>
+            </div>
+            
+            <Link
+              href="/events/new"
+              className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+            >
+              <Plus className="h-5 w-5" />
+              <span>Nuevo Evento</span>
+            </Link>
+          </div>
+        </div>
 
       {/* Filters */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm mb-6">
@@ -350,17 +371,18 @@ export default function EventsPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={isDeleteOpen}
-        onClose={() => setIsDeleteOpen(false)}
-        onConfirm={handleDelete}
-        title="Confirmar eliminación"
-        message={`¿Seguro que deseas eliminar el evento "${currentEvent?.name}"?`}
-        confirmText="Eliminar"
-        cancelText="Cancelar"
-        type="danger"
-      />
-    </div>
+        {/* Delete Confirmation Modal */}
+        <ConfirmModal
+          isOpen={isDeleteOpen}
+          onClose={() => setIsDeleteOpen(false)}
+          onConfirm={handleDelete}
+          title="Confirmar eliminación"
+          message={`¿Seguro que deseas eliminar el evento "${currentEvent?.name}"?`}
+          confirmText="Eliminar"
+          cancelText="Cancelar"
+          type="danger"
+        />
+      </div>
+    </>
   )
 }

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
+import { useSettings } from '@/context/SettingsContext'
+import { useMobileMenu } from '@/context/MobileMenuContext'
 import { 
   LayoutDashboard, 
   ChefHat, 
@@ -14,21 +15,33 @@ import {
   User, 
   HelpCircle,
   LogOut,
-  Menu,
-  X,
   BookOpen,
-  Palette
+  Palette,
+  Volume2,
+  VolumeX,
+  Menu,
+  X
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { 
+    name: 'Eventos', 
+    href: '/events', 
+    icon: Calendar,
+    children: [
+      { name: 'Lista de Eventos', href: '/events' },
+      { name: 'Menús', href: '/events/menus' }
+    ]
+  },
+  { 
     name: 'Recetas', 
     href: '/recipes', 
     icon: BookOpen,
     children: [
-      { name: 'Categorías', href: '/recipes/categories' },
+      { name: 'Lista Recetas', href: '/recipes' },
+      { name: 'Categorías', href: '/recipes/categories' }
     ]
   },
   { 
@@ -36,8 +49,8 @@ const navigation = [
     href: '/ingredients', 
     icon: Package,
     children: [
-      { name: 'Inventario', href: '/ingredients' },
-      { name: 'Alérgenos', href: '/allergens' }
+      { name: 'Lista Ingredientes', href: '/ingredients' },
+      { name: 'Alérgenos', href: '/ingredients/allergens' },
     ]
   },
   { 
@@ -45,17 +58,7 @@ const navigation = [
     href: '/suppliers', 
     icon: Users,
     children: [
-      { name: 'Lista Proveedores', href: '/suppliers' },
-      { name: 'Pedidos', href: '/suppliers/orders' }
-    ]
-  },
-  { 
-    name: 'Eventos', 
-    href: '/events', 
-    icon: Calendar,
-    children: [
-      { name: 'Eventos', href: '/events' },
-      { name: 'Menús', href: '/events/menus' }
+      { name: 'Lista Proveedores', href: '/suppliers' }
     ]
   },
 ]
@@ -70,7 +73,8 @@ export default function DashboardSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuth()
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const { soundEnabled, setSoundEnabled } = useSettings()
+  const { isMobileMenuOpen, setIsMobileMenuOpen, toggleMobileMenu } = useMobileMenu()
 
   const isNavItemActive = (href: string) => {
     if (href === '/dashboard') {
@@ -91,7 +95,7 @@ export default function DashboardSidebar() {
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="flex items-center px-6 py-4 border-b border-gray-200">
+      <div className="hidden lg:flex items-center px-6 py-4 border-b border-gray-200">
         <Link href="/dashboard" className="flex items-center space-x-2">
           <ChefHat className="h-8 w-8 text-orange-600" />
           <span className="text-xl font-bold text-gray-900">RecetasAPI</span>
@@ -99,7 +103,7 @@ export default function DashboardSidebar() {
       </div>
 
       {/* User Info */}
-      <div className="px-6 py-4 border-b border-gray-200">
+      <div className="px-6 py-3 border-b border-gray-200">
         <div className="flex items-center space-x-3">
           <div className="bg-orange-100 p-2 rounded-full">
             <User className="h-5 w-5 text-orange-600" />
@@ -179,7 +183,46 @@ export default function DashboardSidebar() {
 
       {/* Bottom Navigation */}
       <div className="border-t border-gray-200 px-3 py-4 space-y-1">
-        {bottomNavigation.map((item) => (
+                {/* Sound Toggle */}
+                <button
+          onClick={() => setSoundEnabled(!soundEnabled)}
+          className="w-full group flex items-center px-3 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+        >
+          {soundEnabled ? (
+            <Volume2 className="mr-3 h-5 w-5 text-gray-500" />
+          ) : (
+            <VolumeX className="mr-3 h-5 w-5 text-gray-500" />
+          )}
+          <span className="flex-1 text-left">
+            Sonido {soundEnabled ? 'activado' : 'desactivado'}
+          </span>
+          <div className={clsx(
+            'relative inline-flex h-4 w-7 items-center rounded-full transition-colors',
+            soundEnabled ? 'bg-orange-500' : 'bg-gray-300'
+          )}>
+            <div className={clsx(
+              'inline-block h-3 w-3 transform rounded-full bg-white transition-transform',
+              soundEnabled ? 'translate-x-3.5' : 'translate-x-0.5'
+            )} />
+          </div>
+        </button>
+        
+        {/* Demo Componentes */}
+        <Link
+          href="/demo/components"
+          className="group flex items-center px-3 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+          onClick={() => {
+            if (isMobileMenuOpen) {
+              setIsMobileMenuOpen(false)
+            }
+          }}
+        >
+          <Palette className="mr-3 h-5 w-5 text-gray-500" />
+          Demo componentes
+        </Link>
+
+        {/* Configuración y Ayuda */}
+        {bottomNavigation.slice(1).map((item) => (
           <Link
             key={item.name}
             href={item.href}
@@ -208,23 +251,25 @@ export default function DashboardSidebar() {
 
   return (
     <>
+      {/* Mobile Header with Logo - GLOBAL */}
+      <header className="lg:hidden bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <ChefHat className="h-6 w-6 text-orange-600" />
+            <span className="text-lg font-bold text-gray-900">RecetasAPI</span>
+          </div>
+          <button 
+            onClick={toggleMobileMenu}
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
+      </header>
+
       {/* Desktop Sidebar */}
       <div className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 lg:bg-white lg:border-r lg:border-gray-200">
         <SidebarContent />
-      </div>
-
-      {/* Mobile menu button */}
-      <div className="lg:hidden fixed top-4 left-4 z-50">
-        <button
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="bg-white p-2 rounded-lg shadow-md border border-gray-200"
-        >
-          {isMobileMenuOpen ? (
-            <X className="h-6 w-6 text-gray-600" />
-          ) : (
-            <Menu className="h-6 w-6 text-gray-600" />
-          )}
-        </button>
       </div>
 
       {/* Mobile Sidebar */}
@@ -234,7 +279,7 @@ export default function DashboardSidebar() {
             className="lg:hidden fixed inset-0 z-40 bg-black/50"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <div className="lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200">
+          <div className="lg:hidden fixed top-[60px] bottom-0 left-0 z-50 w-64 bg-white border-r border-gray-200 overflow-y-auto">
             <SidebarContent />
           </div>
         </>

@@ -15,6 +15,7 @@ export interface ToastProps {
     label: string
     onClick: () => void
   }
+  playSound?: boolean
 }
 
 const Toast = ({
@@ -24,7 +25,8 @@ const Toast = ({
   type = 'info',
   duration = 5000,
   onClose,
-  action
+  action,
+  playSound = true
 }: ToastProps) => {
   const [isVisible, setIsVisible] = useState(false)
   const [isLeaving, setIsLeaving] = useState(false)
@@ -32,6 +34,11 @@ const Toast = ({
   useEffect(() => {
     // Aparecer inmediatamente
     setIsVisible(true)
+
+    // Reproducir sonido de notificación si está habilitado
+    if (playSound) {
+      playNotificationSound(type)
+    }
 
     // Auto close después de duration
     if (duration > 0) {
@@ -41,7 +48,60 @@ const Toast = ({
 
       return () => clearTimeout(timer)
     }
-  }, [duration])
+  }, [duration, playSound, type])
+
+  const playNotificationSound = (toastType: 'success' | 'error' | 'warning' | 'info') => {
+    try {
+      // Crear un contexto de audio solo cuando se necesite
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      
+      // Diferentes frecuencias para diferentes tipos de notificación
+      const frequencies = {
+        success: [523.25, 659.25, 783.99], // C5, E5, G5 (acorde mayor alegre)
+        error: [220, 196, 174.61], // A3, G3, F3 (descendente, más grave)
+        warning: [440, 523.25], // A4, C5 (dos tonos)
+        info: [523.25, 440] // C5, A4 (neutro)
+      }
+      
+      const notesFreq = frequencies[toastType]
+      const duration = 0.15 // Duración de cada nota en segundos
+      
+      notesFreq.forEach((freq, index) => {
+        setTimeout(() => {
+          const oscillator = audioContext.createOscillator()
+          const gainNode = audioContext.createGain()
+          
+          oscillator.connect(gainNode)
+          gainNode.connect(audioContext.destination)
+          
+          oscillator.frequency.setValueAtTime(freq, audioContext.currentTime)
+          oscillator.type = 'sine' // Sonido suave tipo campana
+          
+          // Envelope para suavizar el sonido
+          gainNode.gain.setValueAtTime(0, audioContext.currentTime)
+          gainNode.gain.linearRampToValueAtTime(0.1, audioContext.currentTime + 0.01) // Volumen bajo
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration)
+          
+          oscillator.start(audioContext.currentTime)
+          oscillator.stop(audioContext.currentTime + duration)
+          
+          // Limpiar después de usar
+          oscillator.onended = () => {
+            oscillator.disconnect()
+            gainNode.disconnect()
+          }
+        }, index * 100) // 100ms entre notas
+      })
+      
+      // Cerrar el contexto después de un tiempo
+      setTimeout(() => {
+        audioContext.close()
+      }, (notesFreq.length * 100) + (duration * 1000) + 100)
+      
+    } catch (error) {
+      console.warn('No se pudo reproducir el sonido de notificación:', error)
+    }
+  }
 
   const handleClose = () => {
     setIsLeaving(true)
@@ -79,8 +139,8 @@ const Toast = ({
         'flex items-start p-4 mb-3 border rounded-lg shadow-lg max-w-md w-full transition-all duration-300 ease-in-out transform',
         backgroundColors[type],
         {
-          'translate-x-0 opacity-100': isVisible && !isLeaving,
-          'translate-x-full opacity-0': !isVisible || isLeaving,
+          'translate-y-0 opacity-100': isVisible && !isLeaving,
+          'translate-y-full opacity-0': !isVisible || isLeaving,
         }
       )}
       role="alert"

@@ -66,7 +66,7 @@ export default function SuppliersPage() {
       const response = await apiGet<Supplier[]>('/suppliers')
       setSuppliers(response.data)
       setError(null)
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Error al cargar proveedores')
       console.error('Error loading suppliers:', err)
     } finally {
@@ -78,7 +78,7 @@ export default function SuppliersPage() {
     try {
       const response = await apiGet('/suppliers/stats')
       setStats(response.data)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading stats:', err)
     }
   }
@@ -143,8 +143,8 @@ export default function SuppliersPage() {
               <p className="text-sm font-medium text-gray-600">Total Proveedores</p>
               <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
             </div>
-            <div className="bg-gray-100 p-3 rounded-full">
-              <Users className="h-6 w-6 text-gray-600" />
+            <div className="bg-orange-100 p-3 rounded-lg">
+              <Users className="h-6 w-6 text-orange-600" />
             </div>
           </div>
         </div>
@@ -155,8 +155,8 @@ export default function SuppliersPage() {
               <p className="text-sm font-medium text-gray-600">Activos</p>
               <p className="text-2xl font-bold text-green-600">{stats.active}</p>
             </div>
-            <div className="bg-green-100 p-3 rounded-full">
-              <Building className="h-6 w-6 text-green-600" />
+            <div className="bg-orange-100 p-3 rounded-lg">
+              <Building className="h-6 w-6 text-orange-600" />
             </div>
           </div>
         </div>
@@ -167,8 +167,8 @@ export default function SuppliersPage() {
               <p className="text-sm font-medium text-gray-600">Inactivos</p>
               <p className="text-2xl font-bold text-red-600">{stats.inactive}</p>
             </div>
-            <div className="bg-red-100 p-3 rounded-full">
-              <Building className="h-6 w-6 text-red-600" />
+            <div className="bg-orange-100 p-3 rounded-lg">
+              <Building className="h-6 w-6 text-orange-600" />
             </div>
           </div>
         </div>
@@ -179,8 +179,8 @@ export default function SuppliersPage() {
               <p className="text-sm font-medium text-gray-600">Con Ingredientes</p>
               <p className="text-2xl font-bold text-blue-600">{stats.withIngredients}</p>
             </div>
-            <div className="bg-blue-100 p-3 rounded-full">
-              <Package className="h-6 w-6 text-blue-600" />
+            <div className="bg-orange-100 p-3 rounded-lg">
+              <Package className="h-6 w-6 text-orange-600" />
             </div>
           </div>
         </div>

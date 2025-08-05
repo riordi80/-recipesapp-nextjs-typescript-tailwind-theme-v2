@@ -6,6 +6,9 @@ import {
   Input, 
   Select, 
   TextArea, 
+  Chips,
+  SeasonChips,
+  AllergenChips,
   Loading, 
   LoadingPage,
   LoadingCard,
@@ -51,6 +54,11 @@ export default function ComponentsDemoPage() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
   const totalPages = 10
+  
+  // Chips state
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(['javascript', 'react'])
+  const [selectedSeasons, setSelectedSeasons] = useState<string[]>(['primavera', 'verano'])
+  const [selectedAllergens, setSelectedAllergens] = useState<number[]>([1])
   
   const [formData, setFormData] = useState({
     name: '',
@@ -102,6 +110,37 @@ export default function ComponentsDemoPage() {
     { value: 'main', label: 'Plato Principal' },
     { value: 'dessert', label: 'Postre' },
     { value: 'drink', label: 'Bebida' }
+  ]
+
+  const skillsOptions = [
+    { value: 'javascript', label: 'JavaScript' },
+    { value: 'react', label: 'React' },
+    { value: 'nodejs', label: 'Node.js' },
+    { value: 'python', label: 'Python' },
+    { value: 'typescript', label: 'TypeScript' },
+    { value: 'html', label: 'HTML' },
+    { value: 'css', label: 'CSS' },
+    { value: 'sql', label: 'SQL' }
+  ]
+
+  const seasonsOptions = [
+    { value: 'primavera', label: 'Primavera' },
+    { value: 'verano', label: 'Verano' },
+    { value: 'otoño', label: 'Otoño' },
+    { value: 'invierno', label: 'Invierno' }
+  ]
+
+  const allergensOptions = [
+    { allergen_id: 1, name: 'Gluten' },
+    { allergen_id: 2, name: 'Lactosa' },
+    { allergen_id: 3, name: 'Frutos Secos' },
+    { allergen_id: 4, name: 'Huevos' },
+    { allergen_id: 5, name: 'Pescado' },
+    { allergen_id: 6, name: 'Mariscos' },
+    { allergen_id: 7, name: 'Soja' },
+    { allergen_id: 8, name: 'Sésamo' },
+    { allergen_id: 9, name: 'Mostaza' },
+    { allergen_id: 10, name: 'Apio' }
   ]
 
   return (
@@ -288,6 +327,242 @@ export default function ComponentsDemoPage() {
                 rows={4}
                 helperText="Máximo 500 caracteres"
               />
+            </div>
+          </div>
+        </section>
+
+        {/* Sección: Chips (Selección Múltiple) */}
+        <section className="mb-12">
+          <h3 className="text-2xl font-semibold text-gray-800 mb-6">Chips - Selección Múltiple</h3>
+          <div className="space-y-8">
+            
+            {/* Chips básicos */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h4 className="text-lg font-medium text-gray-700 mb-4">Chips Básicos</h4>
+              <div className="space-y-6">
+                
+                {/* Variantes */}
+                <div>
+                  <h5 className="text-sm font-medium text-gray-700 mb-3">Variantes de colores</h5>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    
+                    <div>
+                      <h6 className="text-xs font-medium text-gray-600 mb-3">Habilidades Técnicas (Primary - Orange)</h6>
+                      <Chips
+                        options={skillsOptions}
+                        selected={selectedSkills}
+                        onChange={setSelectedSkills}
+                        variant="primary"
+                        placeholder="Seleccionar habilidades..."
+                      />
+                    </div>
+
+                    <div>
+                      <h6 className="text-xs font-medium text-gray-600 mb-3">Temporadas (Success - Green)</h6>
+                      <Chips
+                        options={seasonsOptions}
+                        selected={selectedSeasons}
+                        onChange={setSelectedSeasons}
+                        variant="success"
+                        placeholder="Seleccionar temporadas..."
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tamaños */}
+                <div>
+                  <h5 className="text-sm font-medium text-gray-700 mb-3">Tamaños</h5>
+                  <div className="space-y-4">
+                    <div>
+                      <h6 className="text-xs font-medium text-gray-600 mb-2">Pequeño</h6>
+                      <Chips
+                        options={skillsOptions.slice(0, 4)}
+                        selected={selectedSkills.slice(0, 2)}
+                        onChange={() => {}}
+                        variant="default"
+                        size="sm"
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <h6 className="text-xs font-medium text-gray-600 mb-2">Mediano (por defecto) - Orange</h6>
+                      <Chips
+                        options={skillsOptions.slice(0, 4)}
+                        selected={selectedSkills.slice(0, 2)}
+                        onChange={() => {}}
+                        variant="primary"
+                        size="md"
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <h6 className="text-xs font-medium text-gray-600 mb-2">Grande - Green</h6>
+                      <Chips
+                        options={skillsOptions.slice(0, 4)}
+                        selected={selectedSkills.slice(0, 2)}
+                        onChange={() => {}}
+                        variant="success"
+                        size="lg"
+                        disabled
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Estado deshabilitado */}
+                <div>
+                  <h5 className="text-sm font-medium text-gray-700 mb-3">Estado deshabilitado</h5>
+                  <Chips
+                    options={skillsOptions.slice(0, 5)}
+                    selected={['javascript', 'react']}
+                    onChange={() => {}}
+                    variant="default"
+                    disabled
+                    placeholder="Chips deshabilitados..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Componentes especializados */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h4 className="text-lg font-medium text-gray-700 mb-4">Componentes Especializados</h4>
+              <div className="space-y-6">
+                
+                {/* SeasonChips */}
+                <div>
+                  <h5 className="text-sm font-medium text-gray-700 mb-3">SeasonChips - Para temporadas de ingredientes</h5>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Componente especializado con los 12 meses del año más &quot;Todo el año&quot;. Interfaz limpia sin etiquetas adicionales.
+                  </p>
+                  <SeasonChips
+                    selected={['enero', 'febrero', 'marzo']}
+                    onChange={(selected) => info(`Temporadas seleccionadas: ${selected.join(', ')}`)}
+                  />
+                </div>
+
+                {/* AllergenChips */}
+                <div>
+                  <h5 className="text-sm font-medium text-gray-700 mb-3">AllergenChips - Para alérgenos</h5>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Componente especializado para selección de alérgenos con estilo danger (rojo). Interfaz minimalista sin texto explicativo.
+                  </p>
+                  <AllergenChips
+                    options={allergensOptions}
+                    selected={selectedAllergens}
+                    onChange={setSelectedAllergens}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Ejemplos de uso real */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h4 className="text-lg font-medium text-gray-700 mb-4">Ejemplos de Uso en el Sistema</h4>
+              <div className="space-y-6">
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Formulario de ingrediente */}
+                  <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <h5 className="text-sm font-semibold text-gray-800 mb-3">
+                      📦 Formulario de Ingrediente
+                    </h5>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Temporada de disponibilidad
+                        </label>
+                        <SeasonChips
+                          selected={['marzo', 'abril', 'mayo']}
+                          onChange={(selected) => info(`Ingrediente disponible en: ${selected.join(', ')}`)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Alérgenos presentes
+                        </label>
+                        <AllergenChips
+                          options={allergensOptions}
+                          selected={[1, 4]}
+                          onChange={(selected) => error(`Alérgenos detectados: ${selected.map(id => allergensOptions.find(a => a.allergen_id === id)?.name).join(', ')}`)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Filtros de búsqueda */}
+                  <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <h5 className="text-sm font-semibold text-gray-800 mb-3">
+                      🔍 Filtros de Búsqueda
+                    </h5>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Filtrar por categorías
+                        </label>
+                        <Chips
+                          options={categoryOptions}
+                          selected={['main', 'dessert']}
+                          onChange={(selected) => info(`Filtros aplicados: ${selected.join(', ')}`)}
+                          variant="primary"
+                          size="sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Filtrar por dificultad
+                        </label>
+                        <Chips
+                          options={difficultyOptions}
+                          selected={['easy']}
+                          onChange={(selected) => info(`Dificultad: ${selected.join(', ')}`)}
+                          variant="success"
+                          size="sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Controles demostrativos */}
+                <div className="border-t pt-6">
+                  <h5 className="text-sm font-medium text-gray-700 mb-3">Controles de prueba</h5>
+                  <div className="flex flex-wrap gap-3">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => setSelectedSkills([])}
+                    >
+                      Limpiar Habilidades
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => setSelectedSeasons(['primavera', 'verano', 'otoño', 'invierno'])}
+                    >
+                      Seleccionar Todas las Temporadas
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => setSelectedAllergens([1, 2, 3])}
+                    >
+                      Alérgenos Comunes
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Estado actual */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h5 className="text-sm font-semibold text-blue-800 mb-2">Estado Actual de las Selecciones</h5>
+                  <div className="text-xs text-blue-700 space-y-1">
+                    <div><strong>Habilidades:</strong> {selectedSkills.join(', ') || 'Ninguna'}</div>
+                    <div><strong>Temporadas:</strong> {selectedSeasons.join(', ') || 'Ninguna'}</div>
+                    <div><strong>Alérgenos:</strong> {selectedAllergens.map(id => allergensOptions.find(a => a.allergen_id === id)?.name).join(', ') || 'Ninguno'}</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -742,6 +1017,165 @@ export default function ComponentsDemoPage() {
           </div>
         </section>
 
+        {/* Sección: Estados de Eventos */}
+        <section className="mb-12">
+          <h3 className="text-2xl font-semibold text-gray-800 mb-6">Estados de Eventos</h3>
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="space-y-6">
+              {/* Estados disponibles */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Estados disponibles para eventos</h4>
+                <p className="text-sm text-gray-500 mb-4">
+                  Estos son los estados definidos para los eventos del sistema, con sus colores correspondientes para badges y texto.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Planificado */}
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="text-sm font-semibold text-gray-800">Planificado</h5>
+                      <Badge variant="info" className="bg-blue-100 text-blue-800">planned</Badge>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Badge:</p>
+                        <Badge className="bg-blue-100 text-blue-800">Planificado</Badge>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Texto métrica:</p>
+                        <span className="text-2xl font-bold text-blue-600">Planificado</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Confirmado */}
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="text-sm font-semibold text-gray-800">Confirmado</h5>
+                      <Badge variant="success" className="bg-green-100 text-green-800">confirmed</Badge>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Badge:</p>
+                        <Badge className="bg-green-100 text-green-800">Confirmado</Badge>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Texto métrica:</p>
+                        <span className="text-2xl font-bold text-green-600">Confirmado</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* En Progreso */}
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="text-sm font-semibold text-gray-800">En Progreso</h5>
+                      <Badge variant="warning" className="bg-yellow-100 text-yellow-800">in_progress</Badge>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Badge:</p>
+                        <Badge className="bg-yellow-100 text-yellow-800">En Progreso</Badge>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Texto métrica:</p>
+                        <span className="text-2xl font-bold text-yellow-600">En Progreso</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Completado */}
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="text-sm font-semibold text-gray-800">Completado</h5>
+                      <Badge variant="default" className="bg-gray-100 text-gray-800">completed</Badge>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Badge:</p>
+                        <Badge className="bg-gray-100 text-gray-800">Completado</Badge>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Texto métrica:</p>
+                        <span className="text-2xl font-bold text-gray-600">Completado</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cancelado */}
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="text-sm font-semibold text-gray-800">Cancelado</h5>
+                      <Badge variant="danger" className="bg-red-100 text-red-800">cancelled</Badge>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Badge:</p>
+                        <Badge className="bg-red-100 text-red-800">Cancelado</Badge>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Texto métrica:</p>
+                        <span className="text-2xl font-bold text-red-600">Cancelado</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Código de referencia */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Referencia de código</h4>
+                <div className="space-y-4">
+                  <div>
+                    <h5 className="text-xs font-semibold text-gray-600 mb-2">Tipo TypeScript:</h5>
+                    <code className="text-xs bg-white p-2 rounded border text-gray-800 block">
+                      type EventStatus = 'planned' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
+                    </code>
+                  </div>
+                  
+                  <div>
+                    <h5 className="text-xs font-semibold text-gray-600 mb-2">Colores para badges/pills:</h5>
+                    <code className="text-xs bg-white p-2 rounded border text-gray-800 block whitespace-pre-wrap">
+{`const statusColors = {
+  planned: 'bg-blue-100 text-blue-800',
+  confirmed: 'bg-green-100 text-green-800', 
+  in_progress: 'bg-yellow-100 text-yellow-800',
+  completed: 'bg-gray-100 text-gray-800',
+  cancelled: 'bg-red-100 text-red-800'
+}`}
+                    </code>
+                  </div>
+
+                  <div>
+                    <h5 className="text-xs font-semibold text-gray-600 mb-2">Colores para texto/métricas:</h5>
+                    <code className="text-xs bg-white p-2 rounded border text-gray-800 block whitespace-pre-wrap">
+{`const statusTextColors = {
+  planned: 'text-blue-600',
+  confirmed: 'text-green-600',
+  in_progress: 'text-yellow-600', 
+  completed: 'text-gray-600',
+  cancelled: 'text-red-600'
+}`}
+                    </code>
+                  </div>
+
+                  <div>
+                    <h5 className="text-xs font-semibold text-gray-600 mb-2">Labels en español:</h5>
+                    <code className="text-xs bg-white p-2 rounded border text-gray-800 block whitespace-pre-wrap">
+{`const statusLabels = {
+  planned: 'Planificado',
+  confirmed: 'Confirmado',
+  in_progress: 'En Progreso',
+  completed: 'Completado', 
+  cancelled: 'Cancelado'
+}`}
+                    </code>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Sección: Ejemplo Real */}
         <section className="mb-12">
           <h3 className="text-2xl font-semibold text-gray-800 mb-6">Ejemplo de Uso Real</h3>
@@ -812,9 +1246,9 @@ export default function ComponentsDemoPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">
-                        <Button size="sm" variant="ghost" icon={Eye} />
-                        <Button size="sm" variant="ghost" icon={Edit} />
-                        <Button size="sm" variant="ghost" icon={Trash2} />
+                        <Button size="sm" variant="ghost" icon={Eye}> </Button>
+                        <Button size="sm" variant="ghost" icon={Edit}> </Button>
+                        <Button size="sm" variant="ghost" icon={Trash2}> </Button>
                       </div>
                     </td>
                   </tr>
@@ -833,9 +1267,9 @@ export default function ComponentsDemoPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">
-                        <Button size="sm" variant="ghost" icon={Eye} />
-                        <Button size="sm" variant="ghost" icon={Edit} />
-                        <Button size="sm" variant="ghost" icon={Trash2} />
+                        <Button size="sm" variant="ghost" icon={Eye}> </Button>
+                        <Button size="sm" variant="ghost" icon={Edit}> </Button>
+                        <Button size="sm" variant="ghost" icon={Trash2}> </Button>
                       </div>
                     </td>
                   </tr>

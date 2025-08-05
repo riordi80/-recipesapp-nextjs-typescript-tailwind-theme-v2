@@ -36,9 +36,9 @@ async function loadRuntimeConfig(): Promise<RuntimeConfig> {
   return fallbackConfig;
 }
 
-// Crear instancia de axios con URL temporal
+// Crear instancia de axios con URL de variables de entorno
 const api = axios.create({
-  baseURL: 'http://localhost:4000/api', // Se actualiza al cargar config
+  baseURL: (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000') + '/api',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',

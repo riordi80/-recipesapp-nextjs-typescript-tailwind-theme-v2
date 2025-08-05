@@ -38,7 +38,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       const response = await apiGet<User>('/me')
       setUser(response.data)
-    } catch (error: any) {
+    } catch (error: unknown) {
       setUser(null)
       // No mostrar error en consola para 401 (normal cuando no hay sesión)
       if (error?.response?.status !== 401) {
@@ -62,7 +62,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
       
       return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
         message: error.response?.data?.message || 'Error al iniciar sesión',

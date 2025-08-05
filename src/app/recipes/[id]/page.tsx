@@ -13,13 +13,17 @@ import {
   Users, 
   Euro,
   ChefHat,
-  AlertTriangle
+  Wheat,
+  Heart,
+  Package,
+  Info
 } from 'lucide-react'
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api'
 import AddIngredientToRecipeModal from '@/components/modals/AddIngredientToRecipeModal'
 import EditRecipeIngredientModal from '@/components/modals/EditRecipeIngredientModal'
 import ManageSectionsModal from '@/components/modals/ManageSectionsModal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import { useToastHelpers } from '@/context/ToastContext'
 
 interface Recipe {
   recipe_id: number
@@ -91,9 +95,10 @@ export default function RecipeDetailPage() {
   const [allergens, setAllergens] = useState<Allergen[]>([])
   const [sections, setSections] = useState<Section[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(true) // Siempre iniciar en modo edición
+  
+  // Toast helpers
+  const { success, error: showError } = useToastHelpers()
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   
   // Modal states
@@ -109,7 +114,12 @@ export default function RecipeDetailPage() {
   const [formData, setFormData] = useState({
     ...defaultRecipeValues,
     difficulty: '' as '' | 'easy' | 'medium' | 'hard',
-    price_per_serving: '' // Nuevo campo para precio por comensal
+    price_per_serving: '', // Nuevo campo para precio por comensal
+    // Campos nutricionales
+    calories: '',
+    protein: '',
+    carbs: '',
+    fat: ''
   })
 
   // Load data
@@ -189,15 +199,20 @@ export default function RecipeDetailPage() {
         net_price: recipeData.net_price.toString(),
         price_per_serving: (recipeData.net_price / recipeData.servings).toString(),
         is_featured_recipe: recipeData.is_featured_recipe,
-        tax_id: recipeData.tax_id
+        tax_id: recipeData.tax_id,
+        // Campos nutricionales - se cargarán cuando esté disponible nutrition
+        calories: '',
+        protein: '',
+        carbs: '',
+        fat: ''
       })
       
       // Load additional data (non-blocking)
       loadAdditionalData()
       
-      setError(null)
+      // Error cleared, no need for action with Toast system
     } catch (err) {
-      setError('Error al cargar la receta')
+      showError('Error al cargar la receta')
       console.error('Error loading recipe:', err)
     } finally {
       setLoading(false)
@@ -208,7 +223,17 @@ export default function RecipeDetailPage() {
     // Load nutrition
     try {
       const nutritionResponse = await apiGet<Nutrition>(`/recipes/${recipeId}/nutrition`)
-      setNutrition(nutritionResponse.data)
+      const nutritionData = nutritionResponse.data
+      setNutrition(nutritionData)
+      
+      // Update form data with nutrition values
+      setFormData(prev => ({
+        ...prev,
+        calories: nutritionData.calories?.toString() || '',
+        protein: nutritionData.protein?.toString() || '',
+        carbs: nutritionData.carbs?.toString() || '',
+        fat: nutritionData.fat?.toString() || ''
+      }))
     } catch (nutritionErr) {
       setNutrition(null)
     }
@@ -265,7 +290,7 @@ export default function RecipeDetailPage() {
       
       if (Object.keys(errors).length > 0) {
         setValidationErrors(errors)
-        setMessage('Por favor, corrige los errores en el formulario')
+        showError('Por favor, corrige los errores en el formulario')
         return
       }
 
@@ -298,6 +323,21 @@ export default function RecipeDetailPage() {
           console.warn('Error calculating costs:', costErr)
         }
         
+        // Save nutrition data if provided
+        if (formData.calories || formData.protein || formData.carbs || formData.fat) {
+          try {
+            const nutritionData = {
+              calories: formData.calories ? parseInt(formData.calories) : 0,
+              protein: formData.protein ? parseFloat(formData.protein) : 0,
+              carbs: formData.carbs ? parseFloat(formData.carbs) : 0,
+              fat: formData.fat ? parseFloat(formData.fat) : 0
+            }
+            await apiPut(`/recipes/${newRecipeId}/nutrition`, nutritionData)
+          } catch (nutritionErr) {
+            console.warn('Error saving nutrition data:', nutritionErr)
+          }
+        }
+        
         router.push(`/recipes/${newRecipeId}`)
       } else {
         await apiPut(`/recipes/${recipeId}`, recipeData)
@@ -314,15 +354,28 @@ export default function RecipeDetailPage() {
         // Recalculate costs
         await apiPut(`/recipes/${recipeId}/costs`)
         
+        // Save nutrition data if provided
+        if (formData.calories || formData.protein || formData.carbs || formData.fat) {
+          try {
+            const nutritionData = {
+              calories: formData.calories ? parseInt(formData.calories) : 0,
+              protein: formData.protein ? parseFloat(formData.protein) : 0,
+              carbs: formData.carbs ? parseFloat(formData.carbs) : 0,
+              fat: formData.fat ? parseFloat(formData.fat) : 0
+            }
+            await apiPut(`/recipes/${recipeId}/nutrition`, nutritionData)
+          } catch (nutritionErr) {
+            console.warn('Error saving nutrition data:', nutritionErr)
+          }
+        }
+        
         await loadRecipeData()
-        setIsEditing(false)
-        setMessage('Receta actualizada correctamente')
-        setTimeout(() => setMessage(null), 3000)
+        success('Receta actualizada correctamente', 'Receta Actualizada')
       }
       
       setValidationErrors({})
     } catch (err) {
-      setError(isNewRecipe ? 'Error al crear la receta' : 'Error al guardar la receta')
+      showError(isNewRecipe ? 'Error al crear la receta' : 'Error al guardar la receta')
       console.error('Error saving recipe:', err)
     }
   }
@@ -336,7 +389,7 @@ export default function RecipeDetailPage() {
       await apiDelete(`/recipes/${recipeId}`)
       router.push('/recipes')
     } catch (err) {
-      setError('Error al eliminar la receta')
+      showError('Error al eliminar la receta')
       console.error('Error deleting recipe:', err)
       // Keep modal open on error
     }
@@ -350,16 +403,6 @@ export default function RecipeDetailPage() {
     }
   }
 
-  const toggleEdit = () => {
-    if (!isEditing && categories.length > 0 && availableCategories.length > 0) {
-      const categoryIds = categories.map(categoryName => {
-        const found = availableCategories.find(cat => cat.name === categoryName)
-        return found ? found.category_id : null
-      }).filter(id => id !== null) as number[]
-      setSelectedCategoryIds(categoryIds)
-    }
-    setIsEditing(!isEditing)
-  }
 
   // Función para añadir ingrediente a la receta
   const handleAddIngredient = async (ingredientData: RecipeIngredient) => {
@@ -377,11 +420,10 @@ export default function RecipeDetailPage() {
         await apiPut(`/recipes/${recipeId}/costs`)
         await loadRecipeData()
       }
-      setMessage('Ingrediente añadido correctamente')
-      setTimeout(() => setMessage(null), 3000)
+      success('Ingrediente añadido correctamente', 'Ingrediente Añadido')
     } catch (error) {
       console.error('Error adding ingredient:', error)
-      setError('Error al añadir el ingrediente')
+      showError('Error al añadir el ingrediente')
     }
   }
 
@@ -417,11 +459,10 @@ export default function RecipeDetailPage() {
         await apiPut(`/recipes/${recipeId}/costs`)
         await loadRecipeData()
       }
-      setMessage('Ingrediente actualizado correctamente')
-      setTimeout(() => setMessage(null), 3000)
+      success('Ingrediente actualizado correctamente', 'Ingrediente Actualizado')
     } catch (error) {
       console.error('Error updating ingredient:', error)
-      setError('Error al actualizar el ingrediente')
+      showError('Error al actualizar el ingrediente')
     }
   }
 
@@ -443,11 +484,10 @@ export default function RecipeDetailPage() {
         await apiPut(`/recipes/${recipeId}/costs`)
         await loadRecipeData()
       }
-      setMessage('Ingrediente eliminado correctamente')
-      setTimeout(() => setMessage(null), 3000)
+      success('Ingrediente eliminado correctamente', 'Ingrediente Eliminado')
     } catch (error) {
       console.error('Error deleting ingredient:', error)
-      setError('Error al eliminar el ingrediente')
+      showError('Error al eliminar el ingrediente')
     } finally {
       setIsDeleteConfirmOpen(false)
       setIngredientToDelete(null)
@@ -475,11 +515,10 @@ export default function RecipeDetailPage() {
         setSections(sectionsResponse.data || [])
         setIngredients(ingredientsResponse.data || [])
       }
-      setMessage('Sección creada correctamente')
-      setTimeout(() => setMessage(null), 3000)
+      success('Sección creada correctamente', 'Sección Creada')
     } catch (error) {
       console.error('Error creating section:', error)
-      setError('Error al crear la sección')
+      showError('Error al crear la sección')
     }
   }
 
@@ -497,11 +536,10 @@ export default function RecipeDetailPage() {
         const response = await apiGet<Section[]>(`/recipes/${recipeId}/sections`)
         setSections(response.data || [])
       }
-      setMessage('Sección actualizada correctamente')
-      setTimeout(() => setMessage(null), 3000)
+      success('Sección actualizada correctamente', 'Sección Actualizada')
     } catch (error) {
       console.error('Error updating section:', error)
-      setError('Error al actualizar la sección')
+      showError('Error al actualizar la sección')
     }
   }
 
@@ -525,11 +563,10 @@ export default function RecipeDetailPage() {
         setSections(sectionsResponse.data || [])
         setIngredients(ingredientsResponse.data || [])
       }
-      setMessage('Sección eliminada correctamente')
-      setTimeout(() => setMessage(null), 3000)
+      success('Sección eliminada correctamente', 'Sección Eliminada')
     } catch (error) {
       console.error('Error deleting section:', error)
-      setError('Error al eliminar la sección')
+      showError('Error al eliminar la sección')
     }
   }
 
@@ -643,8 +680,57 @@ export default function RecipeDetailPage() {
 
   return (
     <>
-      {/* Header siguiendo el patrón de TotXo */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
+      {/* Mobile Fixed Action Bar */}
+      <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 sticky top-[60px] z-40">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => router.push('/recipes')}
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg font-semibold text-gray-900 truncate">
+                {isNewRecipe ? 'Nueva Receta' : (recipe?.name || 'Cargando...')}
+              </h1>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            {!isNewRecipe && (
+              <button
+                onClick={() => setIsDeleteConfirmOpen(true)}
+                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                title="Eliminar receta"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+            
+            <button
+              onClick={handleSave}
+              className="p-2 bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors"
+              title={isNewRecipe ? 'Crear receta' : 'Guardar cambios'}
+            >
+              <Save className="h-4 w-4" />
+            </button>
+            
+            {!isNewRecipe && (
+              <button
+                onClick={() => router.push('/recipes')}
+                className="p-2 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Cerrar y volver"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Header */}
+      <header className="hidden md:block bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           {/* Title Section */}
           <div className="flex items-center space-x-4">
@@ -673,68 +759,40 @@ export default function RecipeDetailPage() {
 
           {/* Actions */}
           <div className="flex items-center space-x-3">
-            {!isNewRecipe && !isEditing && (
-              <>
-                <button
-                  onClick={toggleEdit}
-                  className="inline-flex items-center px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors"
-                >
-                  <Edit3 className="h-4 w-4 mr-2" />
-                  Editar
-                </button>
-                <button
-                  onClick={openDeleteModal}
-                  className="inline-flex items-center px-4 py-2 border border-red-300 text-red-700 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Eliminar
-                </button>
-              </>
+            {!isNewRecipe && (
+              <button
+                onClick={openDeleteModal}
+                className="inline-flex items-center px-4 py-2 border border-red-300 text-red-700 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Eliminar
+              </button>
             )}
             
-            {isEditing && (
-              <>
-                <button
-                  onClick={handleSave}
-                  className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  {isNewRecipe ? 'Crear' : 'Guardar'}
-                </button>
-                {!isNewRecipe && (
-                  <button
-                    onClick={() => {
-                      setIsEditing(false)
-                      loadRecipeData()
-                    }}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Cancelar
-                  </button>
-                )}
-              </>
+            <button
+              onClick={handleSave}
+              className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {isNewRecipe ? 'Crear' : 'Guardar'}
+            </button>
+            
+            {!isNewRecipe && (
+              <button
+                onClick={() => router.push('/recipes')}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <X className="h-4 w-4 mr-2" />
+                Cerrar
+              </button>
             )}
           </div>
         </div>
       </header>
 
       <div className="p-6">
-        {/* Messages */}
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-600">{error}</p>
-          </div>
-        )}
-        
-        {message && (
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-            <p className="text-green-600">{message}</p>
-          </div>
-        )}
-
         {/* Stats Cards siguiendo patrón TotXo */}
-        {recipe && !isEditing && (
+        {recipe && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between">
@@ -742,8 +800,8 @@ export default function RecipeDetailPage() {
                   <p className="text-sm font-medium text-gray-600">Raciones mínimas</p>
                   <p className="text-2xl font-bold text-gray-900 mt-1">{recipe.production_servings}</p>
                 </div>
-                <div className="bg-blue-100 p-3 rounded-lg">
-                  <Users className="h-6 w-6 text-blue-600" />
+                <div className="bg-orange-100 p-3 rounded-lg">
+                  <Users className="h-6 w-6 text-orange-600" />
                 </div>
               </div>
             </div>
@@ -756,8 +814,8 @@ export default function RecipeDetailPage() {
                     {recipe.prep_time ? `${recipe.prep_time}m` : 'N/A'}
                   </p>
                 </div>
-                <div className="bg-green-100 p-3 rounded-lg">
-                  <Clock className="h-6 w-6 text-green-600" />
+                <div className="bg-orange-100 p-3 rounded-lg">
+                  <Clock className="h-6 w-6 text-orange-600" />
                 </div>
               </div>
             </div>
@@ -780,14 +838,8 @@ export default function RecipeDetailPage() {
                     )
                   })()}
                 </div>
-                <div className={`p-3 rounded-lg ${(() => {
-                  const metrics = calculateCostMetrics()
-                  return metrics && metrics.currentMargin >= 0 ? 'bg-green-100' : 'bg-red-100'
-                })()}`}>
-                  <Euro className={`h-6 w-6 ${(() => {
-                    const metrics = calculateCostMetrics()
-                    return metrics && metrics.currentMargin >= 0 ? 'text-green-600' : 'text-red-600'
-                  })()}`} />
+                <div className="p-3 rounded-lg bg-orange-100">
+                  <Euro className="h-6 w-6 text-orange-600" />
                 </div>
               </div>
             </div>
@@ -795,14 +847,34 @@ export default function RecipeDetailPage() {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Ingredientes</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{ingredients.length}</p>
+                  <p className="text-sm font-medium text-gray-600">Info. Nutricional</p>
+                  {(nutrition && nutrition.calories) || formData.calories ? (
+                    <div className="mt-1">
+                      <p className={`text-2xl font-bold ${(() => {
+                        const calories = parseInt(formData.calories) || nutrition?.calories || 0
+                        if (!calories) return 'text-gray-500'
+                        if (calories < 250) return 'text-green-600'
+                        if (calories <= 500) return 'text-yellow-600'
+                        return 'text-red-600'
+                      })()}`}>
+                        {formData.calories || nutrition?.calories || 0} kcal
+                      </p>
+                      <div className="flex items-center space-x-3 text-xs text-gray-500 mt-1">
+                        <span>P: {formData.protein || nutrition?.protein || 0}g</span>
+                        <span>C: {formData.carbs || nutrition?.carbs || 0}g</span>
+                        <span>G: {formData.fat || nutrition?.fat || 0}g</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-2xl font-bold text-gray-500 mt-1">N/A</p>
+                  )}
                 </div>
-                <div className="bg-orange-100 p-3 rounded-lg">
-                  <ChefHat className="h-6 w-6 text-orange-600" />
+                <div className="p-3 rounded-lg bg-orange-100">
+                  <Heart className="h-6 w-6 text-orange-600" />
                 </div>
               </div>
             </div>
+
           </div>
         )}
 
@@ -811,7 +883,12 @@ export default function RecipeDetailPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Basic Information */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">📋 Información Básica</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="bg-orange-100 p-2 rounded-lg">
+                  <Info className="h-5 w-5 text-orange-600" />
+                </div>
+                Información Básica
+              </h3>
               
               <div className="space-y-6">
                 {/* Name and Categories */}
@@ -826,7 +903,7 @@ export default function RecipeDetailPage() {
                           type="text"
                           value={formData.name}
                           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                           placeholder="Nombre de la receta"
                         />
                         {validationErrors.name && (
@@ -875,7 +952,7 @@ export default function RecipeDetailPage() {
                         type="number"
                         value={formData.prep_time}
                         onChange={(e) => setFormData({ ...formData, prep_time: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                         placeholder="Minutos"
                       />
                     ) : (
@@ -893,7 +970,7 @@ export default function RecipeDetailPage() {
                       <select
                         value={formData.difficulty}
                         onChange={(e) => setFormData({ ...formData, difficulty: e.target.value as '' | 'easy' | 'medium' | 'hard' })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                       >
                         <option value="">Seleccionar</option>
                         {difficultyOptions.map((option) => (
@@ -920,7 +997,7 @@ export default function RecipeDetailPage() {
                           min="1"
                           value={formData.production_servings}
                           onChange={(e) => setFormData({ ...formData, production_servings: parseInt(e.target.value) || 1 })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                         />
                         {validationErrors.production_servings && (
                           <p className="mt-1 text-sm text-red-600">{validationErrors.production_servings}</p>
@@ -954,7 +1031,7 @@ export default function RecipeDetailPage() {
                                 : formData.net_price
                             })
                           }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                         />
                         {validationErrors.servings && (
                           <p className="mt-1 text-sm text-red-600">{validationErrors.servings}</p>
@@ -986,7 +1063,7 @@ export default function RecipeDetailPage() {
                                 : formData.net_price
                             })
                           }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                           placeholder="0.00"
                         />
                         {validationErrors.price_per_serving && (
@@ -1003,19 +1080,6 @@ export default function RecipeDetailPage() {
                     )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Precio total
-                    </label>
-                    <p className="text-sm text-gray-900">
-                      {isEditing && formData.price_per_serving && formData.servings
-                        ? formatCurrency(parseFloat(formData.price_per_serving) * formData.servings)
-                        : recipe?.net_price 
-                        ? formatCurrency(recipe.net_price)
-                        : 'Calculado automáticamente'
-                      }
-                    </p>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1027,7 +1091,12 @@ export default function RecipeDetailPage() {
               
               return (
                 <div className="lg:hidden bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">💰 Análisis de Costes</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <div className="bg-orange-100 p-2 rounded-lg">
+                      <Euro className="h-5 w-5 text-orange-600" />
+                    </div>
+                    Análisis de Costes
+                  </h3>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Coste Total:</span>
@@ -1044,7 +1113,7 @@ export default function RecipeDetailPage() {
                     <div className="flex items-center justify-between border-t pt-4">
                       <span className="text-sm text-gray-600">Margen:</span>
                       <div className="text-right">
-                        <span className={`font-medium ${metrics.currentMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className="font-medium text-orange-600">
                           {formatCurrency(metrics.currentMargin)}
                         </span>
                         <p className="text-xs text-gray-500">
@@ -1052,9 +1121,9 @@ export default function RecipeDetailPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between bg-green-50 p-3 rounded-lg">
-                      <span className="text-sm text-green-700">Precio Sugerido (40%):</span>
-                      <span className="font-medium text-green-700">{formatCurrency(metrics.suggestedPrice40)}</span>
+                    <div className="flex items-center justify-between bg-orange-50 p-3 rounded-lg">
+                      <span className="text-sm text-orange-700">Precio Sugerido (40%):</span>
+                      <span className="font-medium text-orange-700">{formatCurrency(metrics.suggestedPrice40)}</span>
                     </div>
                   </div>
                 </div>
@@ -1064,7 +1133,12 @@ export default function RecipeDetailPage() {
             {/* Ingredients */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">🥕 Ingredientes</h3>
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <div className="bg-orange-100 p-2 rounded-lg">
+                    <Package className="h-5 w-5 text-orange-600" />
+                  </div>
+                  Ingredientes
+                </h3>
                 {isEditing && (
                   <div className="flex items-center space-x-2">
                     <button 
@@ -1223,14 +1297,19 @@ export default function RecipeDetailPage() {
 
             {/* Instructions */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">👨‍🍳 Instrucciones</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="bg-orange-100 p-2 rounded-lg">
+                  <ChefHat className="h-5 w-5 text-orange-600" />
+                </div>
+                Instrucciones
+              </h3>
               
               {isEditing ? (
                 <textarea
                   rows={8}
                   value={formData.instructions}
                   onChange={(e) => setFormData({ ...formData, instructions: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   placeholder="Instrucciones paso a paso..."
                 />
               ) : (
@@ -1245,6 +1324,7 @@ export default function RecipeDetailPage() {
                 </div>
               )}
             </div>
+
           </div>
 
           {/* Sidebar */}
@@ -1256,78 +1336,111 @@ export default function RecipeDetailPage() {
               
               return (
                 <div className="hidden lg:block bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">💰 Análisis de Costes</h3>
+                  <div className="flex items-center space-x-2 mb-6">
+                    <div className="bg-orange-100 p-2 rounded-lg">
+                      <Euro className="h-5 w-5 text-orange-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">Análisis de Costes</h3>
+                  </div>
+                  
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Coste Total:</span>
-                      <span className="font-medium text-gray-900">{formatCurrency(metrics.totalCost)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Coste por Comensal:</span>
-                      <span className="font-medium text-gray-900">{formatCurrency(metrics.costPerServing)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Precio de Venta:</span>
-                      <span className="font-medium text-gray-900">{formatCurrency(metrics.netPrice)}</span>
-                    </div>
-                    <div className="flex items-center justify-between border-t pt-4">
-                      <span className="text-sm text-gray-600">Margen:</span>
-                      <div className="text-right">
-                        <span className={`font-medium ${metrics.currentMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(metrics.currentMargin)}
-                        </span>
-                        <p className="text-xs text-gray-500">
-                          {formatDecimal(metrics.currentMarginPercent, 1)}%
-                        </p>
+                    {/* Coste Total */}
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-600">Coste Total</p>
+                          <p className="text-2xl font-bold text-gray-900">{formatCurrency(metrics.totalCost)}</p>
+                        </div>
+                        <div className="bg-orange-100 p-3 rounded-lg">
+                          <Package className="h-6 w-6 text-orange-600" />
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between bg-green-50 p-3 rounded-lg">
-                      <span className="text-sm text-green-700">Precio Sugerido (40%):</span>
-                      <span className="font-medium text-green-700">{formatCurrency(metrics.suggestedPrice40)}</span>
+
+                    {/* Coste por Comensal */}
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-600">Por Comensal</p>
+                          <p className="text-2xl font-bold text-gray-900">{formatCurrency(metrics.costPerServing)}</p>
+                        </div>
+                        <div className="bg-orange-100 p-3 rounded-lg">
+                          <Users className="h-6 w-6 text-orange-600" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Precio de Venta */}
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-600">Precio Venta</p>
+                          <p className="text-2xl font-bold text-gray-900">{formatCurrency(metrics.netPrice)}</p>
+                        </div>
+                        <div className="bg-orange-100 p-3 rounded-lg">
+                          <Euro className="h-6 w-6 text-orange-600" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Margen */}
+                    <div className="rounded-lg p-4 bg-orange-50 border border-orange-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-orange-700">
+                            Margen de Beneficio
+                          </p>
+                          <div className="flex items-baseline space-x-2">
+                            <p className="text-2xl font-bold text-orange-800">
+                              {formatCurrency(metrics.currentMargin)}
+                            </p>
+                            <span className="text-sm font-medium text-orange-600">
+                              ({formatDecimal(metrics.currentMarginPercent, 1)}%)
+                            </span>
+                          </div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-orange-100">
+                          <Heart className="h-6 w-6 text-orange-600" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Precio Sugerido */}
+                    <div className="bg-gradient-to-r from-orange-50 to-orange-100 border border-orange-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-orange-700">Precio Sugerido</p>
+                          <p className="text-sm text-orange-600 mb-1">Margen 40%</p>
+                          <p className="text-xl font-bold text-orange-800">{formatCurrency(metrics.suggestedPrice40)}</p>
+                        </div>
+                        <div className="bg-orange-100 p-3 rounded-lg">
+                          <ChefHat className="h-6 w-6 text-orange-600" />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               )
             })()}
 
-            {/* Additional Info Cards */}
-            {nutrition && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">🍎 Información Nutricional</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Calorías:</span>
-                    <span className="text-sm font-medium text-gray-900">{nutrition.calories} kcal</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Proteínas:</span>
-                    <span className="text-sm font-medium text-gray-900">{nutrition.protein}g</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Carbohidratos:</span>
-                    <span className="text-sm font-medium text-gray-900">{nutrition.carbs}g</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Grasas:</span>
-                    <span className="text-sm font-medium text-gray-900">{nutrition.fat}g</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {allergens.length > 0 && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">⚠️ Alérgenos</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <div className="bg-orange-100 p-2 rounded-lg">
+                    <Wheat className="h-5 w-5 text-orange-600" />
+                  </div>
+                  Alérgenos
+                </h3>
                 <div className="flex flex-wrap gap-2">
-                  {allergens.map((allergen, index) => (
-                    <span key={index} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
-                      <AlertTriangle className="h-3 w-3 mr-1" />
+                  {allergens.map((allergen) => (
+                    <span key={allergen.name} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
                       {allergen.name}
                     </span>
                   ))}
                 </div>
               </div>
             )}
+
           </div>
         </div>
       </div>

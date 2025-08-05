@@ -5,13 +5,15 @@ import {
   AlertTriangle, 
   Plus, 
   Search, 
-  Eye,
   Edit,
   Trash2,
   Shield,
   Info
 } from 'lucide-react'
-import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api'
+import { apiGet, apiPut, apiDelete } from '@/lib/api'
+import AllergenIcon from '@/components/ui/AllergenIcon'
+import FormModal from '@/components/ui/FormModal'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 
 interface Allergen {
   allergen_id: number
@@ -46,6 +48,19 @@ export default function AllergensPage() {
   // Filters
   const [searchTerm, setSearchTerm] = useState('')
   const [severityFilter, setSeverityFilter] = useState('all')
+  
+  // Modal states
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [currentAllergen, setCurrentAllergen] = useState<Allergen | null>(null)
+  const [editLoading, setEditLoading] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  
+  // Form state for editing
+  const [editForm, setEditForm] = useState({
+    name: '',
+    severity: 'medium' as 'low' | 'medium' | 'high' | 'critical'
+  })
 
   // Load allergens
   useEffect(() => {
@@ -58,7 +73,7 @@ export default function AllergensPage() {
       const response = await apiGet<Allergen[]>('/allergens')
       setAllergens(response.data)
       setError(null)
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Error al cargar alérgenos')
       console.error('Error loading allergens:', err)
     } finally {
@@ -75,6 +90,75 @@ export default function AllergensPage() {
     
     return matchesSearch && matchesSeverity
   })
+
+  // Handle edit modal
+  const openEditModal = (allergen: Allergen) => {
+    setCurrentAllergen(allergen)
+    setEditForm({ 
+      name: allergen.name,
+      severity: allergen.severity || 'medium'
+    })
+    setIsEditModalOpen(true)
+  }
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false)
+    setCurrentAllergen(null)
+    setEditForm({ name: '', severity: 'medium' })
+    setEditLoading(false)
+  }
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!currentAllergen || !editForm.name.trim()) return
+
+    try {
+      setEditLoading(true)
+      await apiPut(`/allergens/${currentAllergen.allergen_id}`, {
+        name: editForm.name.trim(),
+        severity: editForm.severity
+      })
+      
+      // Reload allergens after successful edit
+      await loadAllergens()
+      closeEditModal()
+    } catch (err) {
+      console.error('Error updating allergen:', err)
+      setError('Error al actualizar el alérgeno')
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
+  // Handle delete modal
+  const openDeleteModal = (allergen: Allergen) => {
+    setCurrentAllergen(allergen)
+    setIsDeleteModalOpen(true)
+  }
+
+  const closeDeleteModal = () => {
+    setIsDeleteModalOpen(false)
+    setCurrentAllergen(null)
+    setDeleteLoading(false)
+  }
+
+  const handleDelete = async () => {
+    if (!currentAllergen) return
+
+    try {
+      setDeleteLoading(true)
+      await apiDelete(`/allergens/${currentAllergen.allergen_id}`)
+      
+      // Reload allergens after successful deletion
+      await loadAllergens()
+      closeDeleteModal()
+    } catch (err) {
+      console.error('Error deleting allergen:', err)
+      setError('Error al eliminar el alérgeno')
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -171,9 +255,11 @@ export default function AllergensPage() {
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-3">
-                  <div className="bg-red-100 p-2 rounded-full">
-                    <AlertTriangle className="h-5 w-5 text-red-600" />
-                  </div>
+                  <AllergenIcon 
+                    allergenName={allergen.name}
+                    size="lg"
+                    showLabel={false}
+                  />
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">
                       {allergen.name}
@@ -185,13 +271,18 @@ export default function AllergensPage() {
                 </div>
                 
                 <div className="flex space-x-1">
-                  <button className="text-blue-600 hover:text-blue-900 p-1 rounded">
-                    <Eye className="h-4 w-4" />
-                  </button>
-                  <button className="text-orange-600 hover:text-orange-900 p-1 rounded">
+                  <button 
+                    onClick={() => openEditModal(allergen)}
+                    className="text-orange-600 hover:text-orange-900 p-1 rounded"
+                    title="Editar"
+                  >
                     <Edit className="h-4 w-4" />
                   </button>
-                  <button className="text-red-600 hover:text-red-900 p-1 rounded">
+                  <button 
+                    onClick={() => openDeleteModal(allergen)}
+                    className="text-red-600 hover:text-red-900 p-1 rounded"
+                    title="Eliminar"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -204,16 +295,13 @@ export default function AllergensPage() {
                 </p>
               )}
 
-              {/* Footer */}
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <div className="flex items-center space-x-1">
-                  <Shield className="h-3 w-3" />
+              {/* Footer - Solo nivel si tiene severity válido */}
+              {allergen.severity && severityLabels[allergen.severity] && (
+                <div className="flex items-center text-xs text-gray-500">
+                  <Shield className="h-3 w-3 mr-1" />
                   <span>Nivel: {severityLabels[allergen.severity]}</span>
                 </div>
-                <span>
-                  {new Date(allergen.created_at).toLocaleDateString('es-ES')}
-                </span>
-              </div>
+              )}
             </div>
           </div>
         ))}
@@ -291,6 +379,65 @@ export default function AllergensPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Modal */}
+      <FormModal
+        isOpen={isEditModalOpen}
+        onClose={closeEditModal}
+        onSubmit={handleEditSubmit}
+        title="Editar Alérgeno"
+        submitText="Actualizar"
+        loading={editLoading}
+        submitDisabled={!editForm.name.trim()}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Nombre del alérgeno <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={editForm.name}
+              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              placeholder="Nombre del alérgeno"
+              required
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Nivel de severidad
+            </label>
+            <select
+              value={editForm.severity}
+              onChange={(e) => setEditForm({ ...editForm, severity: e.target.value as 'low' | 'medium' | 'high' | 'critical' })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            >
+              <option value="low">🟢 Bajo - Reacciones leves</option>
+              <option value="medium">🟡 Medio - Reacciones moderadas</option>
+              <option value="high">🟠 Alto - Reacciones significativas</option>
+              <option value="critical">🔴 Crítico - Puede causar anafilaxia</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Clasificación según normativas de seguridad alimentaria
+            </p>
+          </div>
+        </div>
+      </FormModal>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={closeDeleteModal}
+        onConfirm={handleDelete}
+        title="Confirmar eliminación"
+        message={`¿Seguro que deseas eliminar el alérgeno "${currentAllergen?.name}"? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        type="danger"
+        loading={deleteLoading}
+      />
     </div>
   )
 }

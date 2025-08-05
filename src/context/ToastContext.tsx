@@ -16,12 +16,14 @@ interface ToastProviderProps {
   children: React.ReactNode
   position?: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' | 'top-center' | 'bottom-center'
   maxToasts?: number
+  enableSound?: boolean
 }
 
 export const ToastProvider = ({ 
   children, 
   position = 'top-right',
-  maxToasts = 5 
+  maxToasts = 5,
+  enableSound = true
 }: ToastProviderProps) => {
   const [toasts, setToasts] = useState<ToastProps[]>([])
 
@@ -31,6 +33,7 @@ export const ToastProvider = ({
     const newToast: ToastProps = {
       ...toast,
       id,
+      playSound: toast.playSound !== undefined ? toast.playSound : enableSound,
       onClose: (toastId: string) => hideToast(toastId)
     }
 
@@ -46,7 +49,7 @@ export const ToastProvider = ({
     })
 
     return id
-  }, [maxToasts])
+  }, [maxToasts, enableSound])
 
   const hideToast = useCallback((id: string) => {
     setToasts(currentToasts => 

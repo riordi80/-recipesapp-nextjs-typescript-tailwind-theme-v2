@@ -38,6 +38,21 @@ interface Recipe {
   updated_at: string
 }
 
+interface Category {
+  category_id: number
+  name: string
+}
+
+interface Allergen {
+  allergen_id?: number
+  name: string
+}
+
+interface Ingredient {
+  ingredient_id: number
+  name: string
+}
+
 interface FilterOptions {
   categories: string[]
   allergens: string[]
@@ -59,17 +74,12 @@ const difficultyColors = {
 export default function RecipesPage() {
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [, setError] = useState<string | null>(null)
   
   // Toast helpers
   const { success, error: showError } = useToastHelpers()
-  const [view, setView] = useState<'list' | 'grid'>(() => {
-    // Persist user preference
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('recipes-view-preference') as 'list' | 'grid' || 'list'
-    }
-    return 'list'
-  })
+  const [view, setView] = useState<'list' | 'grid'>('list')
+  const [isViewInitialized, setIsViewInitialized] = useState(false)
   
   // Advanced Filters
   const [searchText, setSearchText] = useState('')
@@ -98,6 +108,15 @@ export default function RecipesPage() {
   ]
   const prepTimeOptions = [15, 30, 45, 60, 90, 120]
 
+  // Initialize view from localStorage
+  useEffect(() => {
+    const savedView = localStorage.getItem('recipes-view-preference') as 'list' | 'grid'
+    if (savedView) {
+      setView(savedView)
+    }
+    setIsViewInitialized(true)
+  }, [])
+
   // Load initial data
   useEffect(() => {
     loadFilterOptions()
@@ -114,9 +133,9 @@ export default function RecipesPage() {
       ])
       
       setFilterOptions({
-        categories: categoriesRes.data.map((c: any) => c.name || c),
-        allergens: allergensRes.data.map((a: any) => a.name || a),
-        ingredients: ingredientsRes.data.map((i: any) => i.name || i)
+        categories: categoriesRes.data.map((c: Category) => c.name || c),
+        allergens: allergensRes.data.map((a: Allergen) => a.name || a),
+        ingredients: ingredientsRes.data.map((i: Ingredient) => i.name || i)
       })
     } catch (error) {
       console.error('Error loading filter options:', error)
@@ -145,7 +164,7 @@ export default function RecipesPage() {
       const response = await apiGet<Recipe[]>(`/recipes?${params.toString()}`)
       setRecipes(response.data)
       setError(null)
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Error al cargar recetas')
       console.error('Error loading recipes:', err)
     } finally {
@@ -188,12 +207,12 @@ export default function RecipesPage() {
   }
 
   const getCostPerServing = (recipe: Recipe) => {
-    // Si ya tiene cost_per_serving, usarlo
+    // Ahora cost_per_serving viene calculado dinámicamente desde el backend
     if (recipe.cost_per_serving) {
       return recipe.cost_per_serving
     }
     
-    // Si no, calcularlo desde net_price y servings
+    // Fallback: calcular desde net_price si no hay cost_per_serving
     if (recipe.net_price && recipe.servings) {
       return recipe.net_price / recipe.servings
     }
@@ -237,7 +256,7 @@ export default function RecipesPage() {
     }
   }
 
-  if (loading) {
+  if (loading || !isViewInitialized) {
     return (
       <div className="p-6">
         <div className="animate-pulse space-y-4">
@@ -255,55 +274,76 @@ export default function RecipesPage() {
   }
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-8">
+    <>
+      {/* Mobile Header */}
+      <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 sticky top-[60px] z-40">
         <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center space-x-3 mb-2">
-              <BookOpen className="h-8 w-8 text-orange-600" />
-              <h1 className="text-3xl font-bold text-gray-900">Recetas</h1>
+          <div className="flex items-center space-x-3">
+            <div className="bg-orange-100 p-2 rounded-lg">
+              <BookOpen className="h-5 w-5 text-orange-600" />
             </div>
-            <p className="text-gray-600">
-              Descubre, crea y gestiona todas tus recetas favoritas
-            </p>
+            <h1 className="text-lg font-semibold text-gray-900">Recetas</h1>
           </div>
           
-          <div className="flex items-center space-x-2">
-            {/* View Toggle */}
-            <div className="bg-white border border-gray-200 rounded-lg p-1 flex">
-              <button
-                onClick={() => handleViewChange('list')}
-                className={`p-2 rounded ${
-                  view === 'list' 
-                    ? 'bg-orange-100 text-orange-600' 
-                    : 'text-gray-400 hover:text-gray-600'
-                }`}
-              >
-                <List className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => handleViewChange('grid')}
-                className={`p-2 rounded ${
-                  view === 'grid' 
-                    ? 'bg-orange-100 text-orange-600' 
-                    : 'text-gray-400 hover:text-gray-600'
-                }`}
-              >
-                <Grid3X3 className="h-4 w-4" />
-              </button>
-            </div>
-
-            <Link
-              href="/recipes/new"
-              className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
-            >
-              <Plus className="h-5 w-5" />
-              <span>Nueva Receta</span>
-            </Link>
-          </div>
+          <Link
+            href="/recipes/new"
+            className="p-2 bg-orange-600 text-white hover:bg-orange-700 rounded-lg transition-colors"
+            title="Nueva receta"
+          >
+            <Plus className="h-4 w-4" />
+          </Link>
         </div>
       </div>
+
+      <div className="p-6">
+        {/* Desktop Header */}
+        <div className="hidden md:block mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center space-x-3 mb-2">
+                <BookOpen className="h-8 w-8 text-orange-600" />
+                <h1 className="text-3xl font-bold text-gray-900">Recetas</h1>
+              </div>
+              <p className="text-gray-600">
+                Descubre, crea y gestiona todas tus recetas favoritas
+              </p>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              {/* View Toggle */}
+              <div className="bg-white border border-gray-200 rounded-lg p-1 flex">
+                <button
+                  onClick={() => handleViewChange('list')}
+                  className={`p-2 rounded ${
+                    view === 'list' 
+                      ? 'bg-orange-100 text-orange-600' 
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  <List className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleViewChange('grid')}
+                  className={`p-2 rounded ${
+                    view === 'grid' 
+                      ? 'bg-orange-100 text-orange-600' 
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  <Grid3X3 className="h-4 w-4" />
+                </button>
+              </div>
+
+              <Link
+                href="/recipes/new"
+                className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+              >
+                <Plus className="h-5 w-5" />
+                <span>Nueva Receta</span>
+              </Link>
+            </div>
+          </div>
+        </div>
 
       {/* Advanced Filters */}
       <FilterBar
@@ -566,17 +606,18 @@ export default function RecipesPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={isDeleteOpen}
-        onClose={() => setIsDeleteOpen(false)}
-        onConfirm={handleDelete}
-        title="Confirmar eliminación"
-        message={`¿Seguro que deseas eliminar la receta "${currentRecipe?.name}"?`}
-        confirmText="Eliminar"
-        cancelText="Cancelar"
-        type="danger"
-      />
-    </div>
+        {/* Delete Confirmation Modal */}
+        <ConfirmModal
+          isOpen={isDeleteOpen}
+          onClose={() => setIsDeleteOpen(false)}
+          onConfirm={handleDelete}
+          title="Confirmar eliminación"
+          message={`¿Seguro que deseas eliminar la receta "${currentRecipe?.name}"?`}
+          confirmText="Eliminar"
+          cancelText="Cancelar"
+          type="danger"
+        />
+      </div>
+    </>
   )
 }

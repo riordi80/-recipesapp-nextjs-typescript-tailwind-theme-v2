@@ -115,7 +115,7 @@ export default function NewEventPage() {
       // Redirect to event detail page
       router.push(`/events/${response.data.event_id}`)
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error creating event:', err)
       error('No se pudo crear el evento. Intente nuevamente.', 'Error al Crear')
     } finally {

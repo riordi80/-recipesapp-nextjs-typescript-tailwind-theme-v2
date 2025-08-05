@@ -82,8 +82,8 @@ export default function NewIngredientPage() {
       ])
       
       setFilterOptions({
-        categories: categoriesRes.data.map((c: any) => c.name || c),
-        allergens: allergensRes.data.map((a: any) => a.name || a)
+        categories: categoriesRes.data.map((c: unknown) => c.name || c),
+        allergens: allergensRes.data.map((a: unknown) => a.name || a)
       })
     } catch (error) {
       console.error('Error loading filter options:', error)
@@ -162,7 +162,7 @@ export default function NewIngredientPage() {
       // Redirect to ingredients list
       router.push('/ingredients')
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error creating ingredient:', err)
       error('No se pudo crear el ingrediente. Intente nuevamente.', 'Error al Crear')
     } finally {

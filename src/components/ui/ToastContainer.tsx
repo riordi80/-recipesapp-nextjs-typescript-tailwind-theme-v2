@@ -34,7 +34,9 @@ const ToastContainer = ({
       aria-live="polite"
       aria-label="Notificaciones"
     >
-      <div className="flex flex-col space-y-2 pointer-events-auto">
+      <div className={`flex flex-col space-y-2 pointer-events-auto ${
+        position.includes('bottom') ? 'flex-col-reverse' : ''
+      }`}>
         {toasts.map((toast) => (
           <Toast
             key={toast.id}

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChefHat, ArrowLeft, Save, X } from 'lucide-react'
-import { Button, Input, Select, TextArea, FormModal } from '@/components/ui'
+import { Button, Input, Select, TextArea } from '@/components/ui'
 import { useToastHelpers } from '@/context/ToastContext'
 import { apiPost, apiGet } from '@/lib/api'
 
@@ -56,7 +56,7 @@ export default function NewRecipePage() {
     allergens: []
   })
 
-  const [errors, setErrors] = useState<Partial<RecipeFormData>>({})
+  const [errors, setErrors] = useState<{[K in keyof RecipeFormData]?: string}>({})
 
   // Load filter options
   useEffect(() => {
@@ -80,7 +80,7 @@ export default function NewRecipePage() {
   }
 
   const validateForm = (): boolean => {
-    const newErrors: Partial<RecipeFormData> = {}
+    const newErrors: {[K in keyof RecipeFormData]?: string} = {}
 
     // Required fields
     if (!formData.name.trim()) {
@@ -151,7 +151,7 @@ export default function NewRecipePage() {
       // Redirect to recipe detail page
       router.push(`/recipes/${response.data.recipe_id}`)
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error creating recipe:', err)
       error('No se pudo crear la receta. Intente nuevamente.', 'Error al Crear')
     } finally {

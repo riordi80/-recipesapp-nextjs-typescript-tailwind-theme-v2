@@ -122,7 +122,7 @@ export default function IngredientsPage() {
       const response = await apiGet<Ingredient[]>(`/ingredients?${params.toString()}`)
       setIngredients(response.data)
       setError(null)
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Error al cargar ingredientes')
       console.error('Error loading ingredients:', err)
     } finally {
@@ -135,7 +135,7 @@ export default function IngredientsPage() {
       setWidgetsLoading(true)
       const response = await apiGet<DashboardWidget>('/ingredients/dashboard-widgets')
       setWidgets(response.data)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading widgets:', err)
     } finally {
       setWidgetsLoading(false)
@@ -245,39 +245,62 @@ export default function IngredientsPage() {
   }
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-8">
+    <>
+      {/* Mobile Header */}
+      <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 sticky top-[60px] z-40">
         <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center space-x-3 mb-2">
-              <Package className="h-8 w-8 text-orange-600" />
-              <h1 className="text-3xl font-bold text-gray-900">Ingredientes</h1>
+          <div className="flex items-center space-x-3">
+            <div className="bg-orange-100 p-2 rounded-lg">
+              <Package className="h-5 w-5 text-orange-600" />
             </div>
-            <p className="text-gray-600">
-              Gestiona tu inventario, controla stock y fechas de caducidad
-            </p>
+            <h1 className="text-lg font-semibold text-gray-900">Ingredientes</h1>
           </div>
           
           <Link
             href="/ingredients/new"
-            className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+            className="p-2 bg-orange-600 text-white hover:bg-orange-700 rounded-lg transition-colors"
+            title="Nuevo ingrediente"
           >
-            <Plus className="h-5 w-5" />
-            <span>Nuevo Ingrediente</span>
+            <Plus className="h-4 w-4" />
           </Link>
         </div>
       </div>
 
+      <div className="p-6">
+        {/* Desktop Header */}
+        <div className="hidden md:block mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center space-x-3 mb-2">
+                <Package className="h-8 w-8 text-orange-600" />
+                <h1 className="text-3xl font-bold text-gray-900">Ingredientes</h1>
+              </div>
+              <p className="text-gray-600">
+                Gestiona tu inventario, controla stock y fechas de caducidad
+              </p>
+            </div>
+            
+            <Link
+              href="/ingredients/new"
+              className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+            >
+              <Plus className="h-5 w-5" />
+              <span>Nuevo Ingrediente</span>
+            </Link>
+          </div>
+        </div>
+
       {/* Widgets */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {/* Stock Bajo */}
-        <div className="bg-white rounded-lg border border-red-200 shadow-sm">
-          <div className="px-6 py-4 bg-red-50 border-b border-red-200">
-            <div className="flex items-center space-x-2">
-              <TrendingDown className="h-5 w-5 text-red-600" />
-              <h3 className="font-semibold text-red-900">Stock Crítico</h3>
-            </div>
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <div className="bg-orange-100 p-2 rounded-lg">
+                <TrendingDown className="h-5 w-5 text-orange-600" />
+              </div>
+              Stock Crítico
+            </h3>
           </div>
           <div className="p-4">
             {widgetsLoading ? (
@@ -309,12 +332,14 @@ export default function IngredientsPage() {
         </div>
 
         {/* Próximos a Caducar */}
-        <div className="bg-white rounded-lg border border-yellow-200 shadow-sm">
-          <div className="px-6 py-4 bg-yellow-50 border-b border-yellow-200">
-            <div className="flex items-center space-x-2">
-              <Clock className="h-5 w-5 text-yellow-600" />
-              <h3 className="font-semibold text-yellow-900">Próximos a Caducar</h3>
-            </div>
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <div className="bg-orange-100 p-2 rounded-lg">
+                <Clock className="h-5 w-5 text-orange-600" />
+              </div>
+              Próximos a Caducar
+            </h3>
           </div>
           <div className="p-4">
             {widgetsLoading ? (
@@ -346,12 +371,14 @@ export default function IngredientsPage() {
         </div>
 
         {/* Estacionales */}
-        <div className="bg-white rounded-lg border border-green-200 shadow-sm">
-          <div className="px-6 py-4 bg-green-50 border-b border-green-200">
-            <div className="flex items-center space-x-2">
-              <Sprout className="h-5 w-5 text-green-600" />
-              <h3 className="font-semibold text-green-900">Estacionales</h3>
-            </div>
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <div className="bg-orange-100 p-2 rounded-lg">
+                <Sprout className="h-5 w-5 text-orange-600" />
+              </div>
+              Estacionales
+            </h3>
           </div>
           <div className="p-4">
             {widgetsLoading ? (
@@ -383,12 +410,14 @@ export default function IngredientsPage() {
         </div>
 
         {/* Sin Proveedores */}
-        <div className="bg-white rounded-lg border border-blue-200 shadow-sm">
-          <div className="px-6 py-4 bg-blue-50 border-b border-blue-200">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-blue-600" />
-              <h3 className="font-semibold text-blue-900">Sin Proveedores</h3>
-            </div>
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <div className="bg-orange-100 p-2 rounded-lg">
+                <AlertTriangle className="h-5 w-5 text-orange-600" />
+              </div>
+              Sin Proveedores
+            </h3>
           </div>
           <div className="p-4">
             {widgetsLoading ? (
@@ -509,9 +538,12 @@ export default function IngredientsPage() {
                   <tr key={ingredient.ingredient_id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">
+                        <Link 
+                          href={`/ingredients/${ingredient.ingredient_id}`}
+                          className="text-sm font-medium text-gray-900 hover:text-orange-600 transition-colors"
+                        >
                           {ingredient.name}
-                        </div>
+                        </Link>
                         <div className="text-sm text-gray-500">
                           {ingredient.category}
                         </div>
@@ -625,17 +657,18 @@ export default function IngredientsPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={isDeleteOpen}
-        onClose={() => setIsDeleteOpen(false)}
-        onConfirm={handleDelete}
-        title="Confirmar eliminación"
-        message={`¿Seguro que deseas eliminar el ingrediente "${currentIngredient?.name}"?`}
-        confirmText="Eliminar"
-        cancelText="Cancelar"
-        type="danger"
-      />
-    </div>
+        {/* Delete Confirmation Modal */}
+        <ConfirmModal
+          isOpen={isDeleteOpen}
+          onClose={() => setIsDeleteOpen(false)}
+          onConfirm={handleDelete}
+          title="Confirmar eliminación"
+          message={`¿Seguro que deseas eliminar el ingrediente "${currentIngredient?.name}"?`}
+          confirmText="Eliminar"
+          cancelText="Cancelar"
+          type="danger"
+        />
+      </div>
+    </>
   )
 }

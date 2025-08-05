@@ -4,20 +4,24 @@ import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { 
   ArrowLeft, 
-  Edit3, 
   Trash2, 
   Save, 
   X, 
   Package, 
   Euro,
-  Calendar,
   TrendingUp,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  Calendar,
+  Heart,
+  Info
 } from 'lucide-react'
-import { apiGet, apiDelete, apiPut } from '@/lib/api'
+import { apiGet, apiPost, apiDelete, apiPut } from '@/lib/api'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import { SeasonChips, AllergenChips } from '@/components/ui/Chips'
+import Chips from '@/components/ui/Chips'
 import { useToastHelpers } from '@/context/ToastContext'
+import SupplierManager from '@/components/ui/SupplierManager'
 
 interface Ingredient {
   ingredient_id: number
@@ -25,21 +29,36 @@ interface Ingredient {
   category?: string
   unit?: string
   cost_per_unit?: number
+  base_price?: number
+  waste_percent?: number
   stock?: number
   stock_minimum?: number
   is_available: boolean
   expiration_date?: string
-  season?: string
+  season?: string[]
   allergens?: string[]
+  calories_per_100g?: number
+  protein_per_100g?: number
+  carbs_per_100g?: number
+  fat_per_100g?: number
+  comment?: string
   created_at: string
   updated_at: string
 }
 
 const seasonTranslations = {
-  primavera: 'Primavera',
-  verano: 'Verano',
-  otoño: 'Otoño',
-  invierno: 'Invierno',
+  enero: 'Enero',
+  febrero: 'Febrero',
+  marzo: 'Marzo',
+  abril: 'Abril',
+  mayo: 'Mayo',
+  junio: 'Junio',
+  julio: 'Julio',
+  agosto: 'Agosto',
+  septiembre: 'Septiembre',
+  octubre: 'Octubre',
+  noviembre: 'Noviembre',
+  diciembre: 'Diciembre',
   todo_el_año: 'Todo el año'
 }
 
@@ -51,14 +70,15 @@ export default function IngredientDetailPage() {
 
   // Toast helpers
   const { success, error: showError } = useToastHelpers()
+  
 
   // State
   const [ingredient, setIngredient] = useState<Ingredient | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
-  const [isEditing, setIsEditing] = useState(isNewIngredient)
+  const [isEditing, setIsEditing] = useState(true) // Siempre iniciar en modo edición
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+  
   
   // Delete modal state
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
@@ -66,7 +86,7 @@ export default function IngredientDetailPage() {
   // Filter options
   const [filterOptions, setFilterOptions] = useState({
     categories: [] as string[],
-    allergens: [] as string[]
+    allergens: [] as { allergen_id: number; name: string }[]
   })
 
   // Form state
@@ -75,12 +95,19 @@ export default function IngredientDetailPage() {
     category: '',
     unit: 'kg',
     cost_per_unit: '',
+    base_price: '',
+    waste_percent: '',
     stock: '',
     stock_minimum: '',
     is_available: true,
     expiration_date: '',
-    season: 'todo_el_año',
-    allergens: [] as string[]
+    season: ['todo_el_año'] as string[],
+    allergens: [] as number[],
+    calories_per_100g: '',
+    protein_per_100g: '',
+    carbs_per_100g: '',
+    fat_per_100g: '',
+    comment: ''
   })
 
   // Options for select fields
@@ -95,23 +122,33 @@ export default function IngredientDetailPage() {
     { value: 'botella', label: 'Botellas' }
   ]
 
-  const seasonOptions = [
-    { value: 'primavera', label: 'Primavera' },
-    { value: 'verano', label: 'Verano' },
-    { value: 'otoño', label: 'Otoño' },
-    { value: 'invierno', label: 'Invierno' },
-    { value: 'todo_el_año', label: 'Todo el año' }
-  ]
 
   // Load data
   useEffect(() => {
-    if (!isNewIngredient) {
-      loadIngredientData()
-    } else {
-      initializeNewIngredient()
+    const loadData = async () => {
+      // Primero cargar opciones de filtro
+      await loadFilterOptions()
+      
+      // Luego cargar datos del ingrediente
+      if (!isNewIngredient) {
+        await loadIngredientData()
+      } else {
+        initializeNewIngredient()
+      }
     }
-    loadFilterOptions()
+    
+    loadData()
   }, [ingredientId, isNewIngredient])
+
+  // Debug formData changes
+  useEffect(() => {
+    console.log('FormData changed:', {
+      season: formData.season,
+      allergens: formData.allergens,
+      name: formData.name
+    })
+  }, [formData.season, formData.allergens, formData.name])
+
 
   const initializeNewIngredient = () => {
     setIngredient({
@@ -120,12 +157,19 @@ export default function IngredientDetailPage() {
       category: '',
       unit: 'kg',
       cost_per_unit: 0,
+      base_price: 0,
+      waste_percent: 0,
       stock: 0,
       stock_minimum: 0,
       is_available: true,
       expiration_date: '',
-      season: 'todo_el_año',
+      season: ['todo_el_año'],
       allergens: [],
+      calories_per_100g: 0,
+      protein_per_100g: 0,
+      carbs_per_100g: 0,
+      fat_per_100g: 0,
+      comment: '',
       created_at: '',
       updated_at: ''
     })
@@ -141,7 +185,7 @@ export default function IngredientDetailPage() {
       
       setFilterOptions({
         categories: categoriesRes.data.map((c: any) => c.name || c),
-        allergens: allergensRes.data.map((a: any) => a.name || a)
+        allergens: allergensRes.data // Mantener objetos completos con ID y name
       })
     } catch (error) {
       console.error('Error loading filter options:', error)
@@ -166,18 +210,91 @@ export default function IngredientDetailPage() {
         expirationDate = new Date(ingredientData.expiration_date).toISOString().split('T')[0]
       }
       
+      // Procesar season data
+      let seasonData: string[] = ['todo_el_año']
+      if (ingredientData.season) {
+        if (Array.isArray(ingredientData.season)) {
+          seasonData = ingredientData.season.length > 0 ? ingredientData.season : ['todo_el_año']
+        } else if (typeof ingredientData.season === 'string') {
+          // Las temporadas se almacenan como string separado por comas
+          const seasonString = ingredientData.season as string
+          if (seasonString.includes(',')) {
+            seasonData = seasonString.split(',').map((s: string) => s.trim()).filter((s: string) => s)
+          } else {
+            seasonData = [seasonString]
+          }
+        }
+      }
+
+      // Procesar allergens data  
+      let allergensData: number[] = []
+      if (ingredientData.allergens) {
+        if (Array.isArray(ingredientData.allergens)) {
+          // Puede ser array de objetos {allergen_id, name} o array de IDs
+          allergensData = ingredientData.allergens.map((allergen: any) => {
+            if (typeof allergen === 'object' && allergen.allergen_id) {
+              return allergen.allergen_id
+            } else if (typeof allergen === 'number') {
+              return allergen
+            } else if (typeof allergen === 'string') {
+              // Si es nombre, buscar el ID correspondiente
+              const found = filterOptions.allergens.find(a => a.name === allergen)
+              return found ? found.allergen_id : null
+            }
+            return null
+          }).filter(id => id !== null)
+        } else if (typeof ingredientData.allergens === 'string') {
+          const allergenString = ingredientData.allergens
+          try {
+            // Si es string, puede ser JSON serializado
+            const parsed = JSON.parse(allergenString)
+            if (Array.isArray(parsed)) {
+              allergensData = parsed.map((allergen: any) => {
+                if (typeof allergen === 'object' && allergen.allergen_id) {
+                  return allergen.allergen_id
+                } else if (typeof allergen === 'number') {
+                  return allergen
+                } else if (typeof allergen === 'string') {
+                  const found = filterOptions.allergens.find(a => a.name === allergen)
+                  return found ? found.allergen_id : null
+                }
+                return null
+              }).filter(id => id !== null)
+            }
+          } catch {
+            // Si no es JSON válido y es nombre, buscar ID
+            const found = filterOptions.allergens.find(a => a.name === allergenString)
+            if (found) allergensData = [found.allergen_id]
+          }
+        }
+      }
+
+      console.log('Loading ingredient data:', {
+        originalSeason: ingredientData.season,
+        processedSeason: seasonData,
+        originalAllergens: ingredientData.allergens,
+        processedAllergens: allergensData
+      })
+
       // Set form data
       setFormData({
         name: ingredientData.name || '',
         category: ingredientData.category || '',
         unit: ingredientData.unit || 'kg',
         cost_per_unit: ingredientData.cost_per_unit?.toString() || '',
+        base_price: ingredientData.base_price?.toString() || '',
+        waste_percent: ingredientData.waste_percent ? (ingredientData.waste_percent * 100).toString() : '',
         stock: ingredientData.stock?.toString() || '',
         stock_minimum: ingredientData.stock_minimum?.toString() || '',
         is_available: ingredientData.is_available,
         expiration_date: expirationDate,
-        season: ingredientData.season || 'todo_el_año',
-        allergens: ingredientData.allergens || []
+        season: seasonData,
+        allergens: allergensData,
+        calories_per_100g: ingredientData.calories_per_100g?.toString() || '',
+        protein_per_100g: ingredientData.protein_per_100g?.toString() || '',
+        carbs_per_100g: ingredientData.carbs_per_100g?.toString() || '',
+        fat_per_100g: ingredientData.fat_per_100g?.toString() || '',
+        comment: ingredientData.comment || ''
       })
       
       setError(null)
@@ -202,53 +319,101 @@ export default function IngredientDetailPage() {
         errors.unit = 'La unidad de medida es obligatoria'
       }
       
-      if (formData.cost_per_unit && (isNaN(Number(formData.cost_per_unit)) || Number(formData.cost_per_unit) < 0)) {
-        errors.cost_per_unit = 'El costo debe ser un número positivo'
+      // Validación para campos numéricos
+      const validateNumericField = (value: string, fieldName: string, allowZero: boolean = true): boolean => {
+        if (!value || value.trim() === '') return true // Campos opcionales
+        const num = Number(value)
+        if (isNaN(num)) {
+          errors[fieldName] = `${fieldName} debe ser un número válido`
+          return false
+        }
+        if (!allowZero && num === 0) {
+          errors[fieldName] = `${fieldName} debe ser mayor que cero`
+          return false
+        }
+        if (num < 0) {
+          errors[fieldName] = `${fieldName} debe ser un número positivo`
+          return false
+        }
+        return true
       }
-      
-      if (formData.stock && (isNaN(Number(formData.stock)) || Number(formData.stock) < 0)) {
-        errors.stock = 'El stock debe ser un número positivo'
-      }
-      
-      if (formData.stock_minimum && (isNaN(Number(formData.stock_minimum)) || Number(formData.stock_minimum) < 0)) {
-        errors.stock_minimum = 'El stock mínimo debe ser un número positivo'
-      }
+
+      validateNumericField(formData.cost_per_unit, 'Costo por unidad')
+      validateNumericField(formData.base_price, 'Precio base')
+      validateNumericField(formData.waste_percent, 'Porcentaje de merma')
+      validateNumericField(formData.stock, 'Stock')
+      validateNumericField(formData.stock_minimum, 'Stock mínimo')
+      validateNumericField(formData.calories_per_100g, 'Calorías')
+      validateNumericField(formData.protein_per_100g, 'Proteínas')
+      validateNumericField(formData.carbs_per_100g, 'Carbohidratos')
+      validateNumericField(formData.fat_per_100g, 'Grasas')
       
       if (Object.keys(errors).length > 0) {
         setValidationErrors(errors)
-        setMessage('Por favor, corrige los errores en el formulario')
+        showError('Por favor, corrige los errores en el formulario', 'Error de Validación')
         return
+      }
+
+      // Log para depuración
+      console.log('FormData before save:', formData)
+
+      // Función helper para convertir strings a números o null
+      const parseNumberOrNull = (value: string): number | null => {
+        if (!value || value.trim() === '') return null
+        const parsed = Number(value.trim())
+        return isNaN(parsed) ? null : parsed
+      }
+
+      // Calcular el precio neto automáticamente
+      const basePrice = parseNumberOrNull(formData.base_price)
+      const wastePercent = parseNumberOrNull(formData.waste_percent)
+      let calculatedCostPerUnit = parseNumberOrNull(formData.cost_per_unit)
+      
+      // Si tenemos precio base y merma, calcular el precio neto
+      if (basePrice && wastePercent !== null) {
+        calculatedCostPerUnit = basePrice * (1 + wastePercent / 100)
       }
 
       const ingredientData = {
         name: formData.name.trim(),
         category: formData.category.trim() || null,
         unit: formData.unit,
-        cost_per_unit: formData.cost_per_unit ? Number(formData.cost_per_unit) : null,
-        stock: formData.stock ? Number(formData.stock) : null,
-        stock_minimum: formData.stock_minimum ? Number(formData.stock_minimum) : null,
-        is_available: formData.is_available,
+        cost_per_unit: calculatedCostPerUnit,
+        base_price: basePrice,
+        waste_percent: wastePercent !== null ? wastePercent / 100 : null,
+        stock: parseNumberOrNull(formData.stock),
+        stock_minimum: parseNumberOrNull(formData.stock_minimum),
+        is_available: Boolean(formData.is_available),
         expiration_date: formData.expiration_date || null,
-        season: formData.season || null,
-        allergens: formData.allergens.length > 0 ? formData.allergens : null
+        season: Array.isArray(formData.season) && formData.season.length > 0 ? formData.season : null,
+        allergens: Array.isArray(formData.allergens) ? formData.allergens : [],
+        calories_per_100g: parseNumberOrNull(formData.calories_per_100g),
+        protein_per_100g: parseNumberOrNull(formData.protein_per_100g),
+        carbs_per_100g: parseNumberOrNull(formData.carbs_per_100g),
+        fat_per_100g: parseNumberOrNull(formData.fat_per_100g),
+        comment: formData.comment.trim() || null
       }
+
+      // Log para depuración
+      console.log('Ingredient data to send:', ingredientData)
 
       if (isNewIngredient) {
         const response = await apiPost<{ ingredient_id: number }>('/ingredients', ingredientData)
+        success('Ingrediente creado correctamente', 'Ingrediente Creado')
         router.push(`/ingredients/${response.data.ingredient_id}`)
       } else {
         await apiPut(`/ingredients/${ingredientId}`, ingredientData)
         await loadIngredientData()
-        setIsEditing(false)
-        setMessage('Ingrediente actualizado correctamente')
-        success(`Ingrediente "${ingredientData.name}" actualizado exitosamente`, 'Ingrediente Actualizado')
-        setTimeout(() => setMessage(null), 3000)
+        success('Ingrediente actualizado correctamente', 'Ingrediente Actualizado')
       }
       
       setValidationErrors({})
-    } catch (err) {
-      setError(isNewIngredient ? 'Error al crear el ingrediente' : 'Error al guardar el ingrediente')
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.message || err?.message || (isNewIngredient ? 'Error al crear el ingrediente' : 'Error al guardar el ingrediente')
       console.error('Error saving ingredient:', err)
+      console.error('Error details:', err?.response?.data)
+      showError(errorMessage, 'Error al Guardar')
+      setError(errorMessage)
     }
   }
 
@@ -267,20 +432,10 @@ export default function IngredientDetailPage() {
     }
   }
 
-  const handleAllergenChange = (allergen: string) => {
-    setFormData(prev => ({
-      ...prev,
-      allergens: prev.allergens.includes(allergen)
-        ? prev.allergens.filter(a => a !== allergen)
-        : [...prev.allergens, allergen]
-    }))
-  }
 
-  const toggleEdit = () => {
-    setIsEditing(!isEditing)
-  }
 
   // Calculate metrics
+
   const calculateStockMetrics = () => {
     if (!ingredient) return null
 
@@ -363,8 +518,57 @@ export default function IngredientDetailPage() {
 
   return (
     <>
-      {/* Header siguiendo el patrón de TotXo */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
+      {/* Mobile Fixed Action Bar */}
+      <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 sticky top-[60px] z-40">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => router.push('/ingredients')}
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg font-semibold text-gray-900 truncate">
+                {isNewIngredient ? 'Nuevo Ingrediente' : (ingredient?.name || 'Cargando...')}
+              </h1>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            {!isNewIngredient && (
+              <button
+                onClick={openDeleteModal}
+                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                title="Eliminar ingrediente"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+            
+            <button
+              onClick={handleSave}
+              className="p-2 bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors"
+              title={isNewIngredient ? 'Crear ingrediente' : 'Guardar cambios'}
+            >
+              <Save className="h-4 w-4" />
+            </button>
+            
+            {!isNewIngredient && (
+              <button
+                onClick={() => router.push('/ingredients')}
+                className="p-2 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Cerrar y volver"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Header */}
+      <header className="hidden md:block bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           {/* Title Section */}
           <div className="flex items-center space-x-4">
@@ -383,10 +587,12 @@ export default function IngredientDetailPage() {
                   {ingredient.category && (
                     <span className="text-sm text-gray-500">{ingredient.category}</span>
                   )}
-                  {ingredient.season && (
+                  {ingredient.season && Array.isArray(ingredient.season) && ingredient.season.length > 0 && (
                     <>
                       <span className="text-sm text-gray-500">•</span>
-                      <span className="text-sm text-gray-500">{seasonTranslations[ingredient.season as keyof typeof seasonTranslations] || ingredient.season}</span>
+                      <span className="text-sm text-gray-500">
+                        {ingredient.season.map(s => seasonTranslations[s as keyof typeof seasonTranslations] || s).join(', ')}
+                      </span>
                     </>
                   )}
                 </div>
@@ -396,53 +602,38 @@ export default function IngredientDetailPage() {
 
           {/* Actions */}
           <div className="flex items-center space-x-3">
-            {!isNewIngredient && !isEditing && (
-              <>
-                <button
-                  onClick={toggleEdit}
-                  className="inline-flex items-center px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors"
-                >
-                  <Edit3 className="h-4 w-4 mr-2" />
-                  Editar
-                </button>
-                <button
-                  onClick={openDeleteModal}
-                  className="inline-flex items-center px-4 py-2 border border-red-300 text-red-700 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Eliminar
-                </button>
-              </>
+            {!isNewIngredient && (
+              <button
+                onClick={openDeleteModal}
+                className="inline-flex items-center px-4 py-2 border border-red-300 text-red-700 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Eliminar
+              </button>
             )}
             
-            {isEditing && (
-              <>
-                <button
-                  onClick={handleSave}
-                  className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  {isNewIngredient ? 'Crear' : 'Guardar'}
-                </button>
-                {!isNewIngredient && (
-                  <button
-                    onClick={() => {
-                      setIsEditing(false)
-                      loadIngredientData()
-                    }}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Cancelar
-                  </button>
-                )}
-              </>
+            <button
+              onClick={handleSave}
+              className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {isNewIngredient ? 'Crear' : 'Guardar'}
+            </button>
+            
+            {!isNewIngredient && (
+              <button
+                onClick={() => router.push('/ingredients')}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <X className="h-4 w-4 mr-2" />
+                Cerrar
+              </button>
             )}
           </div>
         </div>
       </header>
 
-      <div className="p-6">
+      <div className="p-6 md:p-6 pt-4 md:pt-6">
         {/* Messages */}
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
@@ -450,14 +641,9 @@ export default function IngredientDetailPage() {
           </div>
         )}
         
-        {message && (
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-            <p className="text-green-600">{message}</p>
-          </div>
-        )}
 
         {/* Stats Cards siguiendo patrón TotXo */}
-        {ingredient && !isEditing && (
+        {ingredient && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between">
@@ -468,8 +654,8 @@ export default function IngredientDetailPage() {
                   </p>
                   <p className="text-xs text-gray-500 mt-1">{ingredient.unit || 'ud'}</p>
                 </div>
-                <div className="bg-blue-100 p-3 rounded-lg">
-                  <Package className="h-6 w-6 text-blue-600" />
+                <div className="bg-orange-100 p-3 rounded-lg">
+                  <Package className="h-6 w-6 text-orange-600" />
                 </div>
               </div>
             </div>
@@ -482,8 +668,8 @@ export default function IngredientDetailPage() {
                     {formatCurrency(ingredient.cost_per_unit)}
                   </p>
                 </div>
-                <div className="bg-green-100 p-3 rounded-lg">
-                  <Euro className="h-6 w-6 text-green-600" />
+                <div className="bg-orange-100 p-3 rounded-lg">
+                  <Euro className="h-6 w-6 text-orange-600" />
                 </div>
               </div>
             </div>
@@ -501,8 +687,8 @@ export default function IngredientDetailPage() {
                     )
                   })()}
                 </div>
-                <div className="bg-purple-100 p-3 rounded-lg">
-                  <TrendingUp className="h-6 w-6 text-purple-600" />
+                <div className="bg-orange-100 p-3 rounded-lg">
+                  <TrendingUp className="h-6 w-6 text-orange-600" />
                 </div>
               </div>
             </div>
@@ -527,17 +713,11 @@ export default function IngredientDetailPage() {
                     <p className="text-xs text-red-600 mt-1">No disponible</p>
                   )}
                 </div>
-                <div className={`p-3 rounded-lg ${(() => {
-                  const metrics = calculateStockMetrics()
-                  return metrics?.stockStatus === 'Stock OK' ? 'bg-green-100' : 
-                         metrics?.stockStatus === 'Stock bajo' ? 'bg-yellow-100' : 'bg-red-100'
-                })()}`}>
+                <div className="bg-orange-100 p-3 rounded-lg">
                   {(() => {
                     const metrics = calculateStockMetrics()
                     const IconComponent = metrics?.stockStatus === 'Stock OK' ? CheckCircle : AlertTriangle
-                    const iconColor = metrics?.stockStatus === 'Stock OK' ? 'text-green-600' : 
-                                     metrics?.stockStatus === 'Stock bajo' ? 'text-yellow-600' : 'text-red-600'
-                    return <IconComponent className={`h-6 w-6 ${iconColor}`} />
+                    return <IconComponent className="h-6 w-6 text-orange-600" />
                   })()}
                 </div>
               </div>
@@ -550,7 +730,12 @@ export default function IngredientDetailPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Basic Information */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">📦 Información Básica</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="bg-orange-100 p-2 rounded-lg">
+                  <Package className="h-5 w-5 text-orange-600" />
+                </div>
+                Información Básica
+              </h3>
               
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -564,7 +749,7 @@ export default function IngredientDetailPage() {
                           type="text"
                           value={formData.name}
                           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                           placeholder="Nombre del ingrediente"
                         />
                         {validationErrors.name && (
@@ -572,7 +757,7 @@ export default function IngredientDetailPage() {
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-900">{ingredient?.name}</p>
+                      <p className="text-gray-900">{ingredient?.name}</p>
                     )}
                   </div>
 
@@ -584,7 +769,7 @@ export default function IngredientDetailPage() {
                       <select
                         value={formData.category}
                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                       >
                         <option value="">Seleccionar categoría</option>
                         {filterOptions.categories.map((category) => (
@@ -594,7 +779,7 @@ export default function IngredientDetailPage() {
                         ))}
                       </select>
                     ) : (
-                      <p className="text-sm text-gray-900">
+                      <p className="text-gray-900">
                         {ingredient?.category || 'Sin categoría'}
                       </p>
                     )}
@@ -611,7 +796,7 @@ export default function IngredientDetailPage() {
                         <select
                           value={formData.unit}
                           onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                         >
                           {unitOptions.map((option) => (
                             <option key={option.value} value={option.value}>
@@ -624,7 +809,7 @@ export default function IngredientDetailPage() {
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-900">
+                      <p className="text-gray-900">
                         {unitOptions.find(opt => opt.value === ingredient?.unit)?.label || ingredient?.unit || 'No especificada'}
                       </p>
                     )}
@@ -632,52 +817,72 @@ export default function IngredientDetailPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Costo por unidad (€)
+                      Precio base (€)
                     </label>
                     {isEditing ? (
                       <div>
                         <input
                           type="number"
-                          step="0.01"
-                          value={formData.cost_per_unit}
-                          onChange={(e) => setFormData({ ...formData, cost_per_unit: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                          placeholder="0.00"
+                          step="0.0001"
+                          value={formData.base_price}
+                          onChange={(e) => setFormData({ ...formData, base_price: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          placeholder="0.0000"
                         />
-                        {validationErrors.cost_per_unit && (
-                          <p className="mt-1 text-sm text-red-600">{validationErrors.cost_per_unit}</p>
+                        {validationErrors.base_price && (
+                          <p className="mt-1 text-sm text-red-600">{validationErrors.base_price}</p>
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-900">
-                        {formatCurrency(ingredient?.cost_per_unit)}
+                      <p className="text-gray-900">
+                        {formatCurrency(ingredient?.base_price, 4)}
                       </p>
                     )}
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Temporada
+                      Merma (%)
                     </label>
                     {isEditing ? (
-                      <select
-                        value={formData.season}
-                        onChange={(e) => setFormData({ ...formData, season: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                      >
-                        {seasonOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
+                      <div>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.waste_percent}
+                          onChange={(e) => setFormData({ ...formData, waste_percent: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          placeholder="0.00"
+                        />
+                        {validationErrors.waste_percent && (
+                          <p className="mt-1 text-sm text-red-600">{validationErrors.waste_percent}</p>
+                        )}
+                      </div>
                     ) : (
-                      <p className="text-sm text-gray-900">
-                        {seasonTranslations[ingredient?.season as keyof typeof seasonTranslations] || ingredient?.season || 'No especificada'}
+                      <p className="text-gray-900">
+                        {ingredient?.waste_percent ? `${(ingredient.waste_percent * 100).toFixed(2)}%` : '0.00%'}
                       </p>
                     )}
                   </div>
                 </div>
+
+                {/* Precio neto calculado */}
+                {isEditing && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-orange-800 mb-2">💰 Precio Neto (Calculado automáticamente)</h4>
+                    <p className="text-lg font-bold text-orange-900">
+                      {(() => {
+                        const basePrice = Number(formData.base_price) || 0
+                        const wastePercent = Number(formData.waste_percent) || 0
+                        const netPrice = basePrice * (1 + wastePercent / 100)
+                        return netPrice > 0 ? formatCurrency(netPrice, 4) : 'Se calcula al introducir precio base'
+                      })()}
+                    </p>
+                    <p className="text-xs text-orange-600 mt-1">
+                      Fórmula: Precio Base × (1 + Merma%)
+                    </p>
+                  </div>
+                )}
 
                 {/* Availability checkbox */}
                 {isEditing && (
@@ -697,138 +902,89 @@ export default function IngredientDetailPage() {
               </div>
             </div>
 
-            {/* Stock Information */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">📊 Inventario</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Stock actual
-                  </label>
+            {/* Temporada y Alérgenos */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Temporada */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <div className="bg-orange-100 p-2 rounded-lg">
+                    <Calendar className="h-5 w-5 text-orange-600" />
+                  </div>
+                  Temporada
+                </h3>
+                
+                <div className="space-y-4">
                   {isEditing ? (
-                    <div>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={formData.stock}
-                        onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        placeholder="0"
-                      />
-                      {validationErrors.stock && (
-                        <p className="mt-1 text-sm text-red-600">{validationErrors.stock}</p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-900">
-                      {ingredient?.stock ?? 0} {ingredient?.unit || 'ud'}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Stock mínimo
-                  </label>
-                  {isEditing ? (
-                    <div>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={formData.stock_minimum}
-                        onChange={(e) => setFormData({ ...formData, stock_minimum: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        placeholder="0"
-                      />
-                      {validationErrors.stock_minimum && (
-                        <p className="mt-1 text-sm text-red-600">{validationErrors.stock_minimum}</p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-900">
-                      {ingredient?.stock_minimum ?? 0} {ingredient?.unit || 'ud'}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Fecha de caducidad
-                  </label>
-                  {isEditing ? (
-                    <input
-                      type="date"
-                      value={formData.expiration_date}
-                      onChange={(e) => setFormData({ ...formData, expiration_date: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    <SeasonChips
+                      selected={formData.season}
+                      onChange={(selected) => {
+                        console.log('Season chips onChange:', selected)
+                        setFormData({ ...formData, season: selected })
+                      }}
+                      size="sm"
                     />
                   ) : (
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-gray-900">
-                        {formatDate(ingredient?.expiration_date)}
-                      </span>
-                      {ingredient?.expiration_date && (() => {
-                        const days = getDaysUntilExpiry(ingredient.expiration_date)
-                        if (days && days <= 7) {
+                    <div className="flex flex-wrap gap-2">
+                      {ingredient?.season && Array.isArray(ingredient.season) && ingredient.season.length > 0 ? (
+                        ingredient.season.map((s) => (
+                          <span key={s} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                            {seasonTranslations[s as keyof typeof seasonTranslations] || s}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-gray-500">No especificada</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Alérgenos */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <div className="bg-orange-100 p-2 rounded-lg">
+                    <AlertTriangle className="h-5 w-5 text-orange-600" />
+                  </div>
+                  Alérgenos
+                </h3>
+                
+                <div className="space-y-4">
+                  {isEditing ? (
+                    <AllergenChips
+                      options={filterOptions.allergens}
+                      selected={formData.allergens}
+                      onChange={(selected) => {
+                        console.log('Allergen chips onChange:', selected)
+                        setFormData({ ...formData, allergens: selected })
+                      }}
+                      size="sm"
+                      allowEmpty={true}
+                    />
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {ingredient?.allergens && ingredient.allergens.length > 0 ? (
+                        ingredient.allergens.map((allergen) => {
+                          // allergen puede ser string (nombre) o number (ID)
+                          let allergenName = allergen
+                          if (typeof allergen === 'number') {
+                            const found = filterOptions.allergens.find(a => a.allergen_id === allergen)
+                            allergenName = found ? found.name : `ID: ${allergen}`
+                          }
                           return (
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              days < 0 ? 'bg-red-100 text-red-800' :
-                              days <= 3 ? 'bg-red-100 text-red-800' :
-                              'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {days < 0 ? 'Caducado' : `${days}d`}
+                            <span key={allergen} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              {allergenName}
                             </span>
                           )
-                        }
-                        return null
-                      })()}
+                        })
+                      ) : (
+                        <span className="text-sm text-gray-500">Sin alérgenos declarados</span>
+                      )}
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Allergens */}
-            {(filterOptions.allergens.length > 0 || ingredient?.allergens?.length) && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">⚠️ Alérgenos</h3>
-                
-                {isEditing ? (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {filterOptions.allergens.map((allergen) => (
-                      <label key={allergen} className="flex items-center space-x-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.allergens.includes(allergen)}
-                          onChange={() => handleAllergenChange(allergen)}
-                          className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                        />
-                        <span className="text-sm text-gray-700">{allergen}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <>
-                    {ingredient?.allergens && ingredient.allergens.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {ingredient.allergens.map((allergen, index) => (
-                          <span key={index} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
-                            <AlertTriangle className="h-3 w-3 mr-1" />
-                            {allergen}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500">
-                        Este ingrediente no contiene alérgenos conocidos
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Sidebar */}
@@ -836,7 +992,12 @@ export default function IngredientDetailPage() {
             {/* Stock Analysis */}
             {ingredient && !isEditing && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">📈 Análisis de Stock</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <div className="bg-orange-100 p-2 rounded-lg">
+                    <TrendingUp className="h-5 w-5 text-orange-600" />
+                  </div>
+                  Análisis de Stock
+                </h3>
                 {(() => {
                   const metrics = calculateStockMetrics()
                   if (!metrics) return null
@@ -867,10 +1028,235 @@ export default function IngredientDetailPage() {
               </div>
             )}
 
+            {/* Inventario */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="bg-orange-100 p-2 rounded-lg">
+                  <Package className="h-5 w-5 text-orange-600" />
+                </div>
+                Inventario
+              </h3>
+              
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Stock actual
+                    </label>
+                    {isEditing ? (
+                      <div>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.stock}
+                          onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          placeholder="0.00"
+                        />
+                        {validationErrors.stock && (
+                          <p className="mt-1 text-sm text-red-600">{validationErrors.stock}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-900">
+                        {ingredient?.stock ?? 0} {ingredient?.unit || 'ud'}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Stock mínimo
+                    </label>
+                    {isEditing ? (
+                      <div>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.stock_minimum}
+                          onChange={(e) => setFormData({ ...formData, stock_minimum: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          placeholder="0.00"
+                        />
+                        {validationErrors.stock_minimum && (
+                          <p className="mt-1 text-sm text-red-600">{validationErrors.stock_minimum}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-900">
+                        {ingredient?.stock_minimum ?? 0} {ingredient?.unit || 'ud'}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Fecha de caducidad
+                    </label>
+                    {isEditing ? (
+                      <input
+                        type="date"
+                        value={formData.expiration_date}
+                        onChange={(e) => setFormData({ ...formData, expiration_date: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-900">
+                        {formatDate(ingredient?.expiration_date)}
+                        {ingredient?.expiration_date && (() => {
+                          const daysLeft = getDaysUntilExpiry(ingredient.expiration_date)
+                          if (daysLeft !== null) {
+                            if (daysLeft < 0) {
+                              return <span className="ml-2 text-xs text-red-600">(Caducado)</span>
+                            } else if (daysLeft <= 7) {
+                              return <span className="ml-2 text-xs text-yellow-600">({daysLeft} días)</span>
+                            } else if (daysLeft <= 30) {
+                              return <span className="ml-2 text-xs text-gray-500">({daysLeft} días)</span>
+                            }
+                          }
+                          return null
+                        })()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Suppliers Section */}
+            {ingredient && !isNewIngredient && (
+              <SupplierManager 
+                entityId={ingredient.ingredient_id}
+                entityType="ingredient"
+                disabled={false}
+                title="Proveedores"
+              />
+            )}
+
+            {/* Información Nutricional */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="bg-orange-100 p-2 rounded-lg">
+                  <Heart className="h-5 w-5 text-orange-600" />
+                </div>
+                Información Nutricional
+              </h3>
+              <p className="text-xs text-gray-500 mb-4">Por cada 100g del ingrediente</p>
+              
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Calorías (kcal)
+                    </label>
+                    {isEditing ? (
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.calories_per_100g}
+                        onChange={(e) => setFormData({ ...formData, calories_per_100g: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        placeholder="0.00"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-900">
+                        {ingredient?.calories_per_100g ?? 0} kcal
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Proteínas (g)
+                    </label>
+                    {isEditing ? (
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.protein_per_100g}
+                        onChange={(e) => setFormData({ ...formData, protein_per_100g: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        placeholder="0.00"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-900">
+                        {ingredient?.protein_per_100g ?? 0}g
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Carbohidratos (g)
+                    </label>
+                    {isEditing ? (
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.carbs_per_100g}
+                        onChange={(e) => setFormData({ ...formData, carbs_per_100g: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        placeholder="0.00"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-900">
+                        {ingredient?.carbs_per_100g ?? 0}g
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Grasas (g)
+                    </label>
+                    {isEditing ? (
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.fat_per_100g}
+                        onChange={(e) => setFormData({ ...formData, fat_per_100g: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        placeholder="0.00"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-900">
+                        {ingredient?.fat_per_100g ?? 0}g
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Comentarios */}
+                <div className="pt-4 border-t border-gray-200">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Comentarios
+                  </label>
+                  {isEditing ? (
+                    <textarea
+                      rows={3}
+                      value={formData.comment}
+                      onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      placeholder="Comentarios adicionales sobre el ingrediente..."
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-900">
+                      {ingredient?.comment || 'Sin comentarios'}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* Additional Info */}
             {ingredient && !isEditing && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">ℹ️ Información Adicional</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <div className="bg-orange-100 p-2 rounded-lg">
+                    <Info className="h-5 w-5 text-orange-600" />
+                  </div>
+                  Información Adicional
+                </h3>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Disponibilidad:</span>
@@ -911,3 +1297,4 @@ export default function IngredientDetailPage() {
     </>
   )
 }
+
