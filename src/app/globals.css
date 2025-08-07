@@ -5,10 +5,14 @@
   --foreground: #171717;
 }
 
+/* Asegurar que Inter se use correctamente */
+.font-sans {
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Inter', Arial, Helvetica, sans-serif;
 }
 
 /* Table column widths for consistent shopping list tables */

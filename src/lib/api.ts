@@ -67,10 +67,24 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Solo redirigir si NO estamos ya en la página de login y es un 401
+    // Solo redirigir en rutas que REQUIEREN autenticación (dashboard, etc.)
     if (error.response?.status === 401) {
-      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
+      if (typeof window !== 'undefined') {
+        const pathname = window.location.pathname;
+        
+        // Solo redirigir si estamos en rutas protegidas (dashboard)
+        const isProtectedRoute = pathname.startsWith('/dashboard') || 
+                                pathname.startsWith('/recipes') || 
+                                pathname.startsWith('/ingredients') ||
+                                pathname.startsWith('/suppliers') ||
+                                pathname.startsWith('/events') ||
+                                pathname.startsWith('/orders') ||
+                                pathname.startsWith('/settings');
+        
+        // No redirigir si ya estamos en login o en rutas públicas
+        if (isProtectedRoute && !pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);

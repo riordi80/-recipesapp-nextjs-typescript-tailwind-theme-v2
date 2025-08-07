@@ -9,7 +9,6 @@ import {
   LayoutDashboard, 
   ChefHat, 
   Package, 
-  Users, 
   Calendar,
   Settings, 
   User, 
@@ -21,6 +20,7 @@ import {
   VolumeX,
   Menu,
   Truck,
+  Building,
   X
 } from 'lucide-react'
 import { clsx } from 'clsx'
@@ -30,51 +30,36 @@ const navigation = [
   { 
     name: 'Eventos', 
     href: '/events', 
-    icon: Calendar,
-    children: [
-      { name: 'Lista de Eventos', href: '/events' },
-      { name: 'Menús', href: '/events/menus' }
-    ]
+    icon: Calendar
   },
   { 
     name: 'Recetas', 
     href: '/recipes', 
-    icon: BookOpen,
-    children: [
-      { name: 'Lista Recetas', href: '/recipes' },
-      { name: 'Categorías', href: '/recipes/categories' }
-    ]
+    icon: BookOpen
   },
   { 
     name: 'Pedidos', 
     href: '/orders', 
-    icon: Truck,
-    children: [
-      { name: 'Lista Pedidos', href: '/orders' }
-    ]
+    icon: Truck
   },
   { 
     name: 'Ingredientes', 
     href: '/ingredients', 
     icon: Package,
     children: [
-      { name: 'Lista Ingredientes', href: '/ingredients' },
-      { name: 'Alérgenos', href: '/ingredients/allergens' },
+      { name: 'Alérgenos', href: '/ingredients/allergens' }
     ]
   },
   { 
     name: 'Proveedores', 
     href: '/suppliers', 
-    icon: Users,
-    children: [
-      { name: 'Lista Proveedores', href: '/suppliers' }
-    ]
+    icon: Building
   },
 ]
 
 const bottomNavigation = [
   { name: 'Demo Componentes', href: '/demo/components', icon: Palette },
-  { name: 'Configuración', href: '/dashboard/settings', icon: Settings },
+  { name: 'Configuración', href: '/settings', icon: Settings },
   { name: 'Ayuda', href: '/dashboard/help', icon: HelpCircle },
 ]
 
@@ -122,9 +107,10 @@ export default function DashboardSidebar() {
               {user?.first_name} {user?.last_name}
             </p>
             <p className="text-xs text-gray-500 capitalize">
-              {user?.role === 'admin' ? 'Administrador' : 
-               user?.role === 'chef' ? 'Chef' : 
-               user?.role === 'supplier_manager' ? 'Gestor de Proveedores' : user?.role}
+              {user?.restaurant_name || 
+               (user?.role === 'admin' ? 'Administrador' : 
+                user?.role === 'chef' ? 'Chef' : 
+                user?.role === 'supplier_manager' ? 'Gestor de Proveedores' : user?.role)}
             </p>
           </div>
         </div>
@@ -285,7 +271,7 @@ export default function DashboardSidebar() {
       {isMobileMenuOpen && (
         <>
           <div 
-            className="lg:hidden fixed inset-0 z-40 bg-black/50"
+            className="lg:hidden fixed inset-0 z-[45] bg-black/50"
             onClick={() => setIsMobileMenuOpen(false)}
           />
           <div className="lg:hidden fixed top-[60px] bottom-0 left-0 z-50 w-64 bg-white border-r border-gray-200 overflow-y-auto">

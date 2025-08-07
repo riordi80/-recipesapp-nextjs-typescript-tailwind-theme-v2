@@ -82,7 +82,7 @@ export default function Chips({
   return (
     <div className={`space-y-3 ${className}`}>
       {/* Selected chips display */}
-      {selected.length > 0 && (
+      {false && selected.length > 0 && (
         <div className="flex flex-wrap gap-2 items-center mb-3">
           {selected.map((value) => {
             const option = options.find(opt => opt.value === value)

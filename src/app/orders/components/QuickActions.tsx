@@ -1,6 +1,6 @@
 'use client'
 
-import { Plus, List, Truck } from 'lucide-react'
+import { ShoppingCart, ClipboardList, Building } from 'lucide-react'
 
 interface QuickActionsProps {
   onNavigateToTab: (tabId: string) => void
@@ -10,36 +10,28 @@ export default function QuickActions({ onNavigateToTab }: QuickActionsProps) {
   const actions = [
     {
       label: 'Generar Lista de Compras',
-      icon: Plus,
-      variant: 'add' as const,
-      onClick: () => onNavigateToTab('shopping-list'),
-      bgColor: 'bg-green-100',
-      iconColor: 'text-green-600',
-      hoverColor: 'hover:bg-green-200'
+      description: 'Crear lista basada en eventos activos',
+      icon: ShoppingCart,
+      onClick: () => onNavigateToTab('shopping-list')
     },
     {
-      label: 'Ver Pedidos Activos',  
-      icon: List,
-      variant: 'view' as const,
-      onClick: () => onNavigateToTab('active-orders'),
-      bgColor: 'bg-blue-100',
-      iconColor: 'text-blue-600',
-      hoverColor: 'hover:bg-blue-200'
+      label: 'Ver Pedidos Activos',
+      description: 'Revisar estado de pedidos pendientes',  
+      icon: ClipboardList,
+      onClick: () => onNavigateToTab('active-orders')
     },
     {
       label: 'Gestionar Proveedores',
-      icon: Truck,
-      variant: 'edit' as const, 
-      onClick: () => onNavigateToTab('suppliers'),
-      bgColor: 'bg-orange-100',
-      iconColor: 'text-orange-600',
-      hoverColor: 'hover:bg-orange-200'
+      description: 'Ver resumen de pedidos por proveedor',
+      icon: Building,
+      onClick: () => onNavigateToTab('suppliers')
     }
   ]
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">
+    <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+      <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+        <ClipboardList className="h-5 w-5 text-orange-600" />
         Acciones Rápidas
       </h3>
       
@@ -50,14 +42,21 @@ export default function QuickActions({ onNavigateToTab }: QuickActionsProps) {
             <button
               key={index}
               onClick={action.onClick}
-              className={`flex flex-col items-center justify-center p-6 rounded-lg border border-gray-200 transition-colors ${action.hoverColor} hover:shadow-md`}
+              className="group bg-white p-4 rounded-lg border border-gray-200 hover:border-orange-300 hover:shadow-sm transition-all duration-200 text-left"
             >
-              <div className={`p-3 rounded-lg mb-3 ${action.bgColor}`}>
-                <IconComponent className={`h-6 w-6 ${action.iconColor}`} />
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-orange-50 group-hover:bg-orange-100 transition-colors">
+                  <IconComponent className="h-5 w-5 text-orange-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium text-gray-900 group-hover:text-orange-700 transition-colors mb-1">
+                    {action.label}
+                  </h4>
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    {action.description}
+                  </p>
+                </div>
               </div>
-              <span className="text-sm font-medium text-gray-900 text-center">
-                {action.label}
-              </span>
             </button>
           )
         })}

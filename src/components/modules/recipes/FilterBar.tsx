@@ -5,6 +5,7 @@ import { Search, Filter, X, ChevronDown } from 'lucide-react'
 
 interface FilterBarProps {
   // Search
+  searchInputRef?: React.RefObject<HTMLInputElement | null>
   searchText: string
   onSearchTextChange: (value: string) => void
   
@@ -35,6 +36,7 @@ interface FilterBarProps {
 }
 
 export default function FilterBar({
+  searchInputRef,
   searchText,
   onSearchTextChange,
   categoryOptions,
@@ -86,11 +88,12 @@ export default function FilterBar({
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm mb-6">
       {/* Main Filter Row */}
       <div className="p-4">
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search */}
+        <div className="flex flex-col 2xl:flex-row gap-4">
+          {/* Search Bar */}
           <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="Buscar recetas..."
               value={searchText}
@@ -99,40 +102,11 @@ export default function FilterBar({
             />
           </div>
 
-          {/* Quick Filters */}
-          <div className="flex flex-wrap sm:flex-nowrap gap-2">
-            {/* Category */}
-            <select
-              value={selectedCategory}
-              onChange={(e) => onCategoryChange(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm min-w-0"
-            >
-              <option value="">Todas las categorías</option>
-              {categoryOptions.map(category => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-
-            {/* Difficulty */}
-            <select
-              value={selectedDifficulty}
-              onChange={(e) => onDifficultyChange(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm min-w-0"
-            >
-              <option value="">Todas las dificultades</option>
-              {difficultyOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-
-            {/* Advanced Filters Toggle */}
+          {/* Mobile/Tablet/Desktop: Only show dropdown */}
+          <div className="2xl:hidden">
             <button
               onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              className={`flex items-center space-x-2 px-3 py-2 border rounded-lg text-sm transition-colors ${
+              className={`w-full flex items-center justify-center space-x-2 px-3 py-2 border rounded-lg text-sm transition-colors h-[42px] ${
                 showAdvancedFilters || hasActiveFilters
                   ? 'border-orange-500 bg-orange-50 text-orange-700'
                   : 'border-gray-300 hover:bg-gray-50 text-gray-700'
@@ -149,93 +123,215 @@ export default function FilterBar({
               <ChevronDown className={`h-4 w-4 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} />
             </button>
           </div>
+
+          {/* Very Large Desktop: All filters inline */}
+          <div className="hidden 2xl:flex flex-wrap gap-2 flex-shrink-0">
+            {/* Category */}
+            <select
+              value={selectedCategory}
+              onChange={(e) => onCategoryChange(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm whitespace-nowrap h-[42px]"
+            >
+              <option value="">Categorías</option>
+              {categoryOptions.map(category => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+
+            {/* Difficulty */}
+            <select
+              value={selectedDifficulty}
+              onChange={(e) => onDifficultyChange(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm whitespace-nowrap h-[42px]"
+            >
+              <option value="">Dificultad</option>
+              {difficultyOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Prep Time */}
+            <select
+              value={selectedPrepTime || ''}
+              onChange={(e) => onPrepTimeChange(e.target.value ? parseInt(e.target.value) : null)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm whitespace-nowrap h-[42px]"
+            >
+              <option value="">Tiempo</option>
+              {prepTimeOptions.map(time => (
+                <option key={time} value={time}>
+                  {formatPrepTime(time)}
+                </option>
+              ))}
+            </select>
+
+            {/* Ingredient */}
+            <select
+              value={selectedIngredient}
+              onChange={(e) => onIngredientChange(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm whitespace-nowrap h-[42px]"
+            >
+              <option value="">Ingrediente</option>
+              {ingredientOptions.map(ingredient => (
+                <option key={ingredient} value={ingredient}>
+                  {ingredient}
+                </option>
+              ))}
+            </select>
+
+            {/* Allergens */}
+            <div className="relative">
+              <select
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm cursor-pointer whitespace-nowrap h-[42px]"
+                onClick={(e) => {
+                  e.preventDefault()
+                  setShowAllergenDropdown(!showAllergenDropdown)
+                }}
+                onFocus={(e) => e.target.blur()}
+                onChange={() => {}} // Prevent React warning
+                value=""
+              >
+                <option value="">
+                  {selectedAllergens.length === 0 
+                    ? 'Alérgenos'
+                    : selectedAllergens.length === 1
+                    ? selectedAllergens[0]
+                    : `${selectedAllergens.length} alérgenos`
+                  }
+                </option>
+              </select>
+              
+              {showAllergenDropdown && (
+                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {allergenOptions.map(allergen => (
+                    <label key={allergen} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedAllergens.includes(allergen)}
+                        onChange={() => handleAllergenToggle(allergen)}
+                        className="mr-2 h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                      />
+                      <span className="text-sm text-gray-700">{allergen}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Clear Filters */}
+            {hasActiveFilters && (
+              <button
+                onClick={clearAllFilters}
+                className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2 whitespace-nowrap h-[42px]"
+              >
+                <X className="h-4 w-4" />
+                <span>Limpiar</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Advanced Filters */}
+      {/* Advanced Filters - Only show when dropdown is open (all except very large desktop) */}
       {showAdvancedFilters && (
-        <div className="border-t border-gray-200 p-4 bg-gray-50">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="2xl:hidden border-t border-gray-200 p-4 bg-gray-50">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Category */}
+            <select
+              value={selectedCategory}
+              onChange={(e) => onCategoryChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+            >
+              <option value="">Todas las categorías</option>
+              {categoryOptions.map(category => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+
+            {/* Difficulty */}
+            <select
+              value={selectedDifficulty}
+              onChange={(e) => onDifficultyChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+            >
+              <option value="">Cualquier dificultad</option>
+              {difficultyOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+
             {/* Prep Time */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tiempo de preparación
-              </label>
-              <select
-                value={selectedPrepTime || ''}
-                onChange={(e) => onPrepTimeChange(e.target.value ? parseInt(e.target.value) : null)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-              >
-                <option value="">Cualquier tiempo</option>
-                {prepTimeOptions.map(time => (
-                  <option key={time} value={time}>
-                    Hasta {formatPrepTime(time)}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              value={selectedPrepTime || ''}
+              onChange={(e) => onPrepTimeChange(e.target.value ? parseInt(e.target.value) : null)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+            >
+              <option value="">Cualquier tiempo</option>
+              {prepTimeOptions.map(time => (
+                <option key={time} value={time}>
+                  Hasta {formatPrepTime(time)}
+                </option>
+              ))}
+            </select>
 
             {/* Ingredient */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Contiene ingrediente
-              </label>
-              <select
-                value={selectedIngredient}
-                onChange={(e) => onIngredientChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-              >
-                <option value="">Cualquier ingrediente</option>
-                {ingredientOptions.map(ingredient => (
-                  <option key={ingredient} value={ingredient}>
-                    {ingredient}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              value={selectedIngredient}
+              onChange={(e) => onIngredientChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+            >
+              <option value="">Cualquier ingrediente</option>
+              {ingredientOptions.map(ingredient => (
+                <option key={ingredient} value={ingredient}>
+                  {ingredient}
+                </option>
+              ))}
+            </select>
 
             {/* Allergens */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Excluir alérgenos
-              </label>
-              <div className="relative">
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm cursor-pointer"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    setShowAllergenDropdown(!showAllergenDropdown)
-                  }}
-                  onFocus={(e) => e.target.blur()}
-                  onChange={() => {}} // Prevent React warning
-                  value=""
-                >
-                  <option value="">
-                    {selectedAllergens.length === 0 
-                      ? 'Seleccionar alérgenos...'
-                      : selectedAllergens.length === 1
-                      ? selectedAllergens[0]
-                      : `${selectedAllergens.length} alérgenos seleccionados`
-                    }
-                  </option>
-                </select>
-                
-                {showAllergenDropdown && (
-                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                    {allergenOptions.map(allergen => (
-                      <label key={allergen} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedAllergens.includes(allergen)}
-                          onChange={() => handleAllergenToggle(allergen)}
-                          className="mr-2 h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
-                        />
-                        <span className="text-sm text-gray-700">{allergen}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
+            <div className="relative">
+              <select
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault()
+                  setShowAllergenDropdown(!showAllergenDropdown)
+                }}
+                onFocus={(e) => e.target.blur()}
+                onChange={() => {}} // Prevent React warning
+                value=""
+              >
+                <option value="">
+                  {selectedAllergens.length === 0 
+                    ? 'Seleccionar alérgenos...'
+                    : selectedAllergens.length === 1
+                    ? selectedAllergens[0]
+                    : `${selectedAllergens.length} alérgenos seleccionados`
+                  }
+                </option>
+              </select>
+              
+              {showAllergenDropdown && (
+                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {allergenOptions.map(allergen => (
+                    <label key={allergen} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedAllergens.includes(allergen)}
+                        onChange={() => handleAllergenToggle(allergen)}
+                        className="mr-2 h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                      />
+                      <span className="text-sm text-gray-700">{allergen}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Clear Filters */}
@@ -246,13 +342,13 @@ export default function FilterBar({
                   className="w-full px-3 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2"
                 >
                   <X className="h-4 w-4" />
-                  <span>Limpiar filtros</span>
+                  <span>Limpiar</span>
                 </button>
               </div>
             )}
           </div>
 
-          {/* Active Filters Tags */}
+          {/* Active Filters Tags - Only in mobile */}
           {hasActiveFilters && (
             <div className="mt-4 pt-4 border-t border-gray-200">
               <div className="flex flex-wrap gap-2">

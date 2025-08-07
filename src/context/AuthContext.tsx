@@ -10,6 +10,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
+  updateRestaurantName: (name: string) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -36,8 +37,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Esperar a que axios esté completamente configurado
       await waitForConfig()
       
-      const response = await apiGet<User>('/me')
-      setUser(response.data)
+      const response = await apiGet<{ authenticated: boolean; user: User }>('/me')
+      setUser(response.data.user)
     } catch (error: unknown) {
       setUser(null)
       // No mostrar error en consola para 401 (normal cuando no hay sesión)
@@ -84,9 +85,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
+  const updateRestaurantName = (name: string) => {
+    if (user) {
+      setUser({ ...user, restaurant_name: name })
+    }
+  }
+
   // Verificar autenticación al cargar la app
   useEffect(() => {
-    checkAuth()
+    // Solo ejecutar en cliente, no en servidor (Next.js SSR)
+    if (typeof window !== 'undefined') {
+      checkAuth()
+    }
   }, [])
 
   const value = {
@@ -94,7 +104,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     loading,
     login,
     logout,
-    checkAuth
+    checkAuth,
+    updateRestaurantName
   }
 
   return (

@@ -7,6 +7,7 @@ export interface User {
   first_name: string
   last_name: string
   role: 'admin' | 'chef' | 'supplier_manager'
+  restaurant_name?: string
   language?: string
   timezone?: string
 }
@@ -14,7 +15,7 @@ export interface User {
 export interface AuthResponse {
   ok: boolean
   message?: string
-  user?: User
+  user: User
 }
 
 // Ingredientes

@@ -101,9 +101,8 @@ export default function GenerateOrderModal({
         <div className="p-6 space-y-6">
           {/* Order Summary */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center space-x-2">
-              <span>📊</span>
-              <span>Resumen de Pedidos a Generar</span>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">
+              Resumen de Pedidos a Generar
             </h3>
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -187,7 +186,7 @@ export default function GenerateOrderModal({
               <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
               <div>
                 <div className="font-medium text-blue-900 mb-2">
-                  📋 Información importante:
+                  Información importante:
                 </div>
                 <ul className="text-sm text-blue-800 space-y-1">
                   <li>• Se creará un pedido separado para cada proveedor</li>

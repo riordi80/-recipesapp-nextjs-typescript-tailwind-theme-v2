@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { Calendar, Plus, Filter, Search, Users, MapPin, Clock, Euro, Eye, Edit, Trash2 } from 'lucide-react'
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api'
@@ -50,6 +50,9 @@ export default function EventsPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [currentEvent, setCurrentEvent] = useState<Event | null>(null)
   
+  // Search input ref for autofocus
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  
   // Filters
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -58,6 +61,17 @@ export default function EventsPage() {
   // Load events
   useEffect(() => {
     loadEvents()
+  }, [])
+
+  // Autofocus search input on page load
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus()
+      }
+    }, 100) // Pequeño delay para asegurar que el DOM está listo
+    
+    return () => clearTimeout(timer)
   }, [])
 
   const loadEvents = async () => {
@@ -100,16 +114,18 @@ export default function EventsPage() {
     }
   }
 
-  // Filter events
-  const filteredEvents = events.filter(event => {
-    const matchesSearch = event.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         event.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         event.location?.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesStatus = statusFilter === 'all' || event.status === statusFilter
-    
-    return matchesSearch && matchesStatus
-  })
+  // Filter events (memoized)
+  const filteredEvents = useMemo(() => {
+    return events.filter(event => {
+      const matchesSearch = event.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           event.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           event.location?.toLowerCase().includes(searchTerm.toLowerCase())
+      
+      const matchesStatus = statusFilter === 'all' || event.status === statusFilter
+      
+      return matchesSearch && matchesStatus
+    })
+  }, [events, searchTerm, statusFilter])
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-ES', {
@@ -154,10 +170,10 @@ export default function EventsPage() {
           
           <Link
             href="/events/new"
-            className="p-2 bg-orange-600 text-white hover:bg-orange-700 rounded-lg transition-colors"
-            title="Nuevo evento"
+            className="inline-flex items-center text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4 mr-1" />
+            <span className="md:hidden">Añadir</span>
           </Link>
         </div>
       </div>
@@ -194,6 +210,7 @@ export default function EventsPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="Buscar eventos..."
                 value={searchTerm}
@@ -363,8 +380,9 @@ export default function EventsPage() {
             </p>
             <Link
               href="/events/new"
-              className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+              className="inline-flex items-center text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
             >
+              <Plus className="h-4 w-4 mr-1" />
               Crear Primer Evento
             </Link>
           </div>

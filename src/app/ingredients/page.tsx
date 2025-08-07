@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { 
   Package, 
@@ -80,6 +80,30 @@ const stockStatusOptions = [
   { value: 'noStock', label: 'Sin stock' }
 ]
 
+const expiryStatusOptions = [
+  { value: 'all', label: 'Todas las caducidades' },
+  { value: 'critical', label: 'Crítico (≤ 3 días)' },
+  { value: 'warning', label: 'Próximo a caducar (4-7 días)' },
+  { value: 'expired', label: 'Caducado' },
+  { value: 'normal', label: 'Normal (> 7 días)' }
+]
+
+const seasonOptions = [
+  { value: 'enero', label: 'Enero' },
+  { value: 'febrero', label: 'Febrero' },
+  { value: 'marzo', label: 'Marzo' },
+  { value: 'abril', label: 'Abril' },
+  { value: 'mayo', label: 'Mayo' },
+  { value: 'junio', label: 'Junio' },
+  { value: 'julio', label: 'Julio' },
+  { value: 'agosto', label: 'Agosto' },
+  { value: 'septiembre', label: 'Septiembre' },
+  { value: 'octubre', label: 'Octubre' },
+  { value: 'noviembre', label: 'Noviembre' },
+  { value: 'diciembre', label: 'Diciembre' },
+  { value: 'todo_año', label: 'Todo el año' }
+]
+
 export default function IngredientsPage() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [widgets, setWidgets] = useState<DashboardWidget>({
@@ -99,10 +123,15 @@ export default function IngredientsPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [currentIngredient, setCurrentIngredient] = useState<Ingredient | null>(null)
   
+  // Search input ref for autofocus
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  
   // Filters
   const [searchTerm, setSearchTerm] = useState('')
   const [availabilityFilter, setAvailabilityFilter] = useState('available')
   const [stockFilter, setStockFilter] = useState('all')
+  const [expiryFilter, setExpiryFilter] = useState('all')
+  const [seasonFilter, setSeasonFilter] = useState('all')
   const [showFilters, setShowFilters] = useState(false)
 
   // Load data
@@ -111,13 +140,26 @@ export default function IngredientsPage() {
     loadWidgets()
   }, [])
 
+  // Autofocus search input on page load
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus()
+      }
+    }, 100) // Pequeño delay para asegurar que el DOM está listo
+    
+    return () => clearTimeout(timer)
+  }, [])
+
   const loadIngredients = async () => {
     try {
       setLoading(true)
       const params = new URLSearchParams()
-      if (searchTerm) params.append('search', searchTerm)
+      // Removido searchTerm - la búsqueda ahora es solo local
       if (availabilityFilter !== 'all') params.append('available', availabilityFilter)
       if (stockFilter !== 'all') params.append('stockStatus', stockFilter)
+      if (expiryFilter !== 'all') params.append('expiryStatus', expiryFilter)
+      if (seasonFilter !== 'all') params.append('season', seasonFilter)
 
       const response = await apiGet<Ingredient[]>(`/ingredients?${params.toString()}`)
       setIngredients(response.data)
@@ -142,30 +184,57 @@ export default function IngredientsPage() {
     }
   }
 
-  // Reload data when filters change
+  // Reload data when NON-SEARCH filters change
   useEffect(() => {
     loadIngredients()
-  }, [searchTerm, availabilityFilter, stockFilter])
+  }, [availabilityFilter, stockFilter, expiryFilter, seasonFilter]) // Removido searchTerm para evitar re-renderizados
 
-  // Filter ingredients locally for real-time filtering
-  const filteredIngredients = ingredients.filter(ingredient => {
-    const matchesSearch = (ingredient.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (ingredient.category || '').toLowerCase().includes(searchTerm.toLowerCase())
-    
-    let matchesAvailability = true
-    if (availabilityFilter === 'available') matchesAvailability = ingredient.is_available
-    if (availabilityFilter === 'unavailable') matchesAvailability = !ingredient.is_available
-    
-    const stock = ingredient.stock ?? 0
-    const stockMin = ingredient.stock_minimum ?? 0
-    
-    let matchesStock = true
-    if (stockFilter === 'low') matchesStock = stock < stockMin && stockMin > 0
-    if (stockFilter === 'withStock') matchesStock = stock > 0
-    if (stockFilter === 'noStock') matchesStock = stock === 0
-    
-    return matchesSearch && matchesAvailability && matchesStock
-  })
+  // Filter ingredients locally for real-time filtering (memoized)
+  const filteredIngredients = useMemo(() => {
+    return ingredients.filter(ingredient => {
+      const matchesSearch = (ingredient.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (ingredient.category || '').toLowerCase().includes(searchTerm.toLowerCase())
+      
+      let matchesAvailability = true
+      if (availabilityFilter === 'available') matchesAvailability = ingredient.is_available
+      if (availabilityFilter === 'unavailable') matchesAvailability = !ingredient.is_available
+      
+      const stock = ingredient.stock ?? 0
+      const stockMin = ingredient.stock_minimum ?? 0
+      
+      let matchesStock = true
+      if (stockFilter === 'low') matchesStock = stock < stockMin && stockMin > 0
+      if (stockFilter === 'withStock') matchesStock = stock > 0
+      if (stockFilter === 'noStock') matchesStock = stock === 0
+      
+      // Expiry filter
+      let matchesExpiry = true
+      if (expiryFilter !== 'all') {
+        const expiryStatus = getExpiryStatus(ingredient.expiration_date)
+        if (expiryFilter === 'critical') matchesExpiry = expiryStatus === 'critical'
+        else if (expiryFilter === 'warning') matchesExpiry = expiryStatus === 'warning'
+        else if (expiryFilter === 'expired') matchesExpiry = expiryStatus === 'expired'
+        else if (expiryFilter === 'normal') matchesExpiry = expiryStatus === 'normal'
+      }
+      
+      // Season filter
+      let matchesSeason = true
+      if (seasonFilter !== 'all') {
+        const ingredientSeasons = getSeasonStatus(ingredient.season)
+        if (ingredientSeasons) {
+          if (seasonFilter === 'todo_año') {
+            matchesSeason = ingredientSeasons.includes('todo_año')
+          } else {
+            matchesSeason = ingredientSeasons.includes(seasonFilter)
+          }
+        } else {
+          matchesSeason = false
+        }
+      }
+      
+      return matchesSearch && matchesAvailability && matchesStock && matchesExpiry && matchesSeason
+    })
+  }, [ingredients, searchTerm, availabilityFilter, stockFilter, expiryFilter, seasonFilter])
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return ''
@@ -181,6 +250,29 @@ export default function IngredientsPage() {
     return diffDays
   }
 
+  const getExpiryStatus = (dateString?: string) => {
+    if (!dateString) return null
+    const days = getDaysUntilExpiry(dateString)
+    if (days === null) return null
+    
+    if (days < 0) return 'expired'
+    if (days <= 3) return 'critical'
+    if (days <= 7) return 'warning'
+    return 'normal'
+  }
+
+  const getSeasonStatus = (season?: string) => {
+    if (!season) return null
+    if (season === 'todo_año') return 'todo_año'
+    
+    // Si es una cadena separada por comas (múltiples temporadas)
+    if (typeof season === 'string' && season.includes(',')) {
+      return season.split(',').map(s => s.trim())
+    }
+    
+    return [season]
+  }
+
   const getStockStatus = (ingredient: Ingredient) => {
     const stock = ingredient.stock ?? 0
     const stockMin = ingredient.stock_minimum ?? 0
@@ -190,7 +282,7 @@ export default function IngredientsPage() {
     return { label: 'Stock OK', color: 'bg-green-100 text-green-800' }
   }
 
-  const getExpiryStatus = (ingredient: Ingredient) => {
+  const getExpiryStatusDisplay = (ingredient: Ingredient) => {
     if (!ingredient.expiration_date) return null
     const days = getDaysUntilExpiry(ingredient.expiration_date)
     if (days === null) return null
@@ -258,10 +350,10 @@ export default function IngredientsPage() {
           
           <Link
             href="/ingredients/new"
-            className="p-2 bg-orange-600 text-white hover:bg-orange-700 rounded-lg transition-colors"
-            title="Nuevo ingrediente"
+            className="inline-flex items-center text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4 mr-1" />
+            <span className="md:hidden">Añadir</span>
           </Link>
         </div>
       </div>
@@ -449,14 +541,15 @@ export default function IngredientsPage() {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filters - Similar to Recipes FilterBar */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm mb-6">
         <div className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            {/* Search */}
-            <div className="relative flex-1">
+          <div className="flex flex-col 2xl:flex-row gap-4">
+            {/* Search Bar */}
+            <div className="relative flex-1 min-w-0">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="Buscar ingredientes..."
                 value={searchTerm}
@@ -465,42 +558,143 @@ export default function IngredientsPage() {
               />
             </div>
 
-            {/* Availability Filter */}
-            <select
-              value={availabilityFilter}
-              onChange={(e) => setAvailabilityFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-            >
-              {availabilityOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            {/* Mobile/Tablet: Only show dropdown */}
+            <div className="2xl:hidden">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`w-full flex items-center justify-center space-x-2 px-3 py-2 border rounded-lg text-sm transition-colors h-[42px] ${
+                  showFilters || (availabilityFilter !== 'all' || stockFilter !== 'all' || expiryFilter !== 'all' || seasonFilter !== 'all')
+                    ? 'border-orange-500 bg-orange-50 text-orange-700'
+                    : 'border-gray-300 hover:bg-gray-50 text-gray-700'
+                }`}
+              >
+                <Filter className="h-4 w-4" />
+                <span>Filtros</span>
+                {(availabilityFilter !== 'all' || stockFilter !== 'all' || expiryFilter !== 'all' || seasonFilter !== 'all') && (
+                  <span className="bg-orange-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {[availabilityFilter !== 'all', stockFilter !== 'all', expiryFilter !== 'all', seasonFilter !== 'all'].filter(Boolean).length}
+                  </span>
+                )}
+              </button>
+            </div>
 
-            {/* Stock Filter */}
-            <select
-              value={stockFilter}
-              onChange={(e) => setStockFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-            >
-              {stockStatusOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            {/* Very Large Desktop: All filters inline */}
+            <div className="hidden 2xl:flex flex-wrap gap-2 flex-shrink-0">
+              {/* Availability */}
+              <select
+                value={availabilityFilter}
+                onChange={(e) => setAvailabilityFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm whitespace-nowrap h-[42px]"
+              >
+                {availabilityOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
 
-            {/* Filter Toggle */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <Filter className="h-4 w-4" />
-              <span>Más Filtros</span>
-            </button>
+              {/* Stock */}
+              <select
+                value={stockFilter}
+                onChange={(e) => setStockFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm whitespace-nowrap h-[42px]"
+              >
+                {stockStatusOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+
+              {/* Expiry Status */}
+              <select
+                value={expiryFilter}
+                onChange={(e) => setExpiryFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm whitespace-nowrap h-[42px]"
+              >
+                {expiryStatusOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+
+              {/* Season */}
+              <select
+                value={seasonFilter}
+                onChange={(e) => setSeasonFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm whitespace-nowrap h-[42px]"
+              >
+                <option value="all">Temporadas</option>
+                {seasonOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
+
+        {/* Advanced Filters - Only show when dropdown is open (all except very large desktop) */}
+        {showFilters && (
+          <div className="2xl:hidden border-t border-gray-200 p-4 bg-gray-50">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Availability */}
+              <select
+                value={availabilityFilter}
+                onChange={(e) => setAvailabilityFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+              >
+                {availabilityOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+
+              {/* Stock Status */}
+              <select
+                value={stockFilter}
+                onChange={(e) => setStockFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+              >
+                {stockStatusOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+
+              {/* Expiry Status */}
+              <select
+                value={expiryFilter}
+                onChange={(e) => setExpiryFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+              >
+                {expiryStatusOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+
+              {/* Season */}
+              <select
+                value={seasonFilter}
+                onChange={(e) => setSeasonFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+              >
+                <option value="all">Todas las temporadas</option>
+                {seasonOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Ingredients Table */}
@@ -532,7 +726,7 @@ export default function IngredientsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredIngredients.map((ingredient) => {
                 const stockStatus = getStockStatus(ingredient)
-                const expiryStatus = getExpiryStatus(ingredient)
+                const expiryStatus = getExpiryStatusDisplay(ingredient)
                 
                 return (
                   <tr key={ingredient.ingredient_id} className="hover:bg-gray-50">
@@ -649,8 +843,9 @@ export default function IngredientsPage() {
             </p>
             <Link
               href="/ingredients/new"
-              className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+              className="inline-flex items-center text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
             >
+              <Plus className="h-4 w-4 mr-1" />
               Añadir Primer Ingrediente
             </Link>
           </div>

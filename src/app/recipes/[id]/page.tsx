@@ -16,7 +16,8 @@ import {
   AlertTriangle,
   Heart,
   Package,
-  Info
+  Info,
+  BookOpen
 } from 'lucide-react'
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api'
 import AddIngredientToRecipeModal from '@/components/modals/AddIngredientToRecipeModal'
@@ -24,6 +25,7 @@ import EditRecipeIngredientModal from '@/components/modals/EditRecipeIngredientM
 import ManageSectionsModal from '@/components/modals/ManageSectionsModal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { useToastHelpers } from '@/context/ToastContext'
+import UnifiedTabs from '@/components/ui/DetailTabs'
 
 interface Recipe {
   recipe_id: number
@@ -94,8 +96,12 @@ export default function RecipeDetailPage() {
   const [nutrition, setNutrition] = useState<Nutrition | null>(null)
   const [allergens, setAllergens] = useState<Allergen[]>([])
   const [sections, setSections] = useState<Section[]>([])
+  const [targetFoodCostPercentage, setTargetFoodCostPercentage] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(true) // Siempre iniciar en modo edición
+  
+  // Tabs state
+  const [activeTab, setActiveTab] = useState('general')
   
   // Toast helpers
   const { success, error: showError } = useToastHelpers()
@@ -130,7 +136,16 @@ export default function RecipeDetailPage() {
       initializeNewRecipe()
     }
     loadAvailableCategories()
+    loadRestaurantSettings()
   }, [recipeId, isNewRecipe]) // Dependencies are intentionally limited to avoid infinite loops
+
+  // Handle URL hash for direct tab navigation
+  useEffect(() => {
+    const hash = window.location.hash.substring(1) // Remove the #
+    if (hash && ['general', 'ingredients', 'preparation'].includes(hash)) {
+      setActiveTab(hash)
+    }
+  }, [])
 
   const initializeNewRecipe = () => {
     setRecipe({
@@ -169,6 +184,19 @@ export default function RecipeDetailPage() {
         { category_id: 5, name: 'Comida vegetariana' },
         { category_id: 6, name: 'Ensaladas' }
       ])
+    }
+  }
+
+  const loadRestaurantSettings = async () => {
+    try {
+      const response = await apiGet<{target_food_cost_percentage: number}>('/restaurant-info')
+      if (response.data?.target_food_cost_percentage) {
+        setTargetFoodCostPercentage(response.data.target_food_cost_percentage)
+      } else {
+        setTargetFoodCostPercentage(30) // Fallback si no hay configuración
+      }
+    } catch (err) {
+      setTargetFoodCostPercentage(30) // Fallback en caso de error
     }
   }
 
@@ -495,7 +523,7 @@ export default function RecipeDetailPage() {
   }
 
   // Funciones para gestionar secciones
-  const handleAddSection = async (sectionName: string) => {
+  const handleAddSection = async (sectionName: string): Promise<Section> => {
     try {
       if (isNewRecipe) {
         // Para recetas nuevas, crear sección temporal
@@ -504,9 +532,13 @@ export default function RecipeDetailPage() {
           name: sectionName
         }
         setSections([...sections, newSection])
+        success('Sección creada correctamente', 'Sección Creada')
+        return newSection
       } else {
         // Para recetas existentes, crear en el backend
-        await apiPost(`/recipes/${recipeId}/sections`, { name: sectionName })
+        const response = await apiPost<Section>(`/recipes/${recipeId}/sections`, { name: sectionName })
+        const newSection = response.data
+        
         // Recargar tanto secciones como ingredientes para actualizar la vista
         const [sectionsResponse, ingredientsResponse] = await Promise.all([
           apiGet<Section[]>(`/recipes/${recipeId}/sections`),
@@ -514,11 +546,14 @@ export default function RecipeDetailPage() {
         ])
         setSections(sectionsResponse.data || [])
         setIngredients(ingredientsResponse.data || [])
+        
+        success('Sección creada correctamente', 'Sección Creada')
+        return newSection
       }
-      success('Sección creada correctamente', 'Sección Creada')
     } catch (error) {
       console.error('Error creating section:', error)
       showError('Error al crear la sección')
+      throw error
     }
   }
 
@@ -608,7 +643,9 @@ export default function RecipeDetailPage() {
     const pricePerServing = netPrice / servings // Calcular precio por porción para mostrar
     const currentMargin = totalNetPrice - totalCost
     const currentMarginPercent = totalNetPrice > 0 ? ((totalNetPrice - totalCost) / totalNetPrice) * 100 : 0
-    const suggestedPrice40 = costPerServing > 0 ? costPerServing / 0.6 : 0 // 40% margen sobre coste por porción
+    // Usar el porcentaje objetivo configurado en el restaurante
+    const foodCostPercent = targetFoodCostPercentage || 30
+    const suggestedPrice = costPerServing > 0 ? costPerServing / (foodCostPercent / 100) : 0
 
     return {
       totalCost,
@@ -618,7 +655,8 @@ export default function RecipeDetailPage() {
       pricePerServing,
       currentMargin,
       currentMarginPercent,
-      suggestedPrice40,
+      suggestedPrice,
+      foodCostPercent,
       productionServings,
       servings
     }
@@ -652,6 +690,440 @@ export default function RecipeDetailPage() {
     })
   }
 
+  // Tab content renderers
+  const renderGeneralTab = () => (
+    <div className="space-y-6">
+      {/* Basic Information */}
+      <div className="bg-gray-50 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="bg-orange-100 p-2 rounded-lg">
+            <Info className="h-5 w-5 text-orange-600" />
+          </div>
+          Información Básica
+        </h3>
+        
+        <div className="space-y-6">
+          {/* Name and Categories */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nombre de la receta <span className="text-red-500">*</span>
+              </label>
+              {isEditing ? (
+                <div>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="Nombre de la receta"
+                  />
+                  {validationErrors.name && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-900">{recipe?.name}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Categorías
+              </label>
+              {isEditing ? (
+                <div className="space-y-2 max-h-24 overflow-y-auto border border-gray-300 rounded-lg p-2">
+                  {availableCategories.map((category) => (
+                    <label key={category.category_id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedCategoryIds.includes(category.category_id)}
+                        onChange={(e) => handleCategoryChange(category.category_id, e.target.checked)}
+                        className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                      />
+                      <span className="text-sm text-gray-700">{category.name}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-900">
+                  {categories.length > 0 ? categories.join(', ') : 'Sin categoría'}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Time, Difficulty, Production Servings */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tiempo (min)
+              </label>
+              {isEditing ? (
+                <input
+                  type="number"
+                  value={formData.prep_time}
+                  onChange={(e) => setFormData({ ...formData, prep_time: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="Minutos"
+                />
+              ) : (
+                <p className="text-sm text-gray-900">
+                  {recipe?.prep_time ? `${recipe.prep_time} min` : 'No especificado'}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Dificultad
+              </label>
+              {isEditing ? (
+                <select
+                  value={formData.difficulty}
+                  onChange={(e) => setFormData({ ...formData, difficulty: e.target.value as '' | 'easy' | 'medium' | 'hard' })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                >
+                  <option value="">Seleccionar</option>
+                  {difficultyOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-sm text-gray-900">
+                  {recipe?.difficulty ? difficultyTranslations[recipe.difficulty] : 'No especificado'}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Raciones mínimas <span className="text-red-500">*</span>
+              </label>
+              {isEditing ? (
+                <div>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.production_servings}
+                    onChange={(e) => setFormData({ ...formData, production_servings: parseInt(e.target.value) || 1 })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  />
+                  {validationErrors.production_servings && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.production_servings}</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-900">{recipe?.production_servings}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Servings and Price */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Comensales <span className="text-red-500">*</span>
+              </label>
+              {isEditing ? (
+                <div>
+                  <input
+                    type="number"
+                    min={recipe?.production_servings || 1}
+                    value={formData.servings}
+                    onChange={(e) => {
+                      const newServings = parseInt(e.target.value) || 1
+                      setFormData({ 
+                        ...formData, 
+                        servings: newServings,
+                        net_price: formData.price_per_serving 
+                          ? (parseFloat(formData.price_per_serving) * newServings).toString()
+                          : formData.net_price
+                      })
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  />
+                  {validationErrors.servings && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.servings}</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-900">{recipe?.servings}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Precio por comensal <span className="text-red-500">*</span>
+              </label>
+              {isEditing ? (
+                <div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.price_per_serving}
+                    onChange={(e) => {
+                      const newPricePerServing = e.target.value
+                      setFormData({ 
+                        ...formData, 
+                        price_per_serving: newPricePerServing,
+                        net_price: newPricePerServing && formData.servings 
+                          ? (parseFloat(newPricePerServing) * formData.servings).toString()
+                          : formData.net_price
+                      })
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="0.00"
+                  />
+                  {validationErrors.price_per_serving && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.price_per_serving}</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-900">
+                  {recipe?.net_price && recipe.servings 
+                    ? formatCurrency(recipe.net_price / recipe.servings)
+                    : formatCurrency(0)
+                  }
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  )
+
+  const renderIngredientsTab = () => (
+    <div className="space-y-6">
+      <div className="bg-gray-50 rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <div className="bg-orange-100 p-2 rounded-lg">
+              <Package className="h-5 w-5 text-orange-600" />
+            </div>
+            Ingredientes
+          </h3>
+          {isEditing && (
+            <div className="flex items-center space-x-2">
+              <button 
+                onClick={() => setIsManageSectionsOpen(true)}
+                className="inline-flex items-center text-gray-600 hover:text-gray-800 text-sm font-medium transition-colors"
+              >
+                <Edit3 className="h-4 w-4 mr-1" />
+                Secciones
+              </button>
+              <button 
+                onClick={() => setIsAddIngredientOpen(true)}
+                className="inline-flex items-center text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                <span className="hidden md:inline">Añadir ingrediente</span>
+                <span className="md:hidden">Añadir</span>
+              </button>
+            </div>
+          )}
+        </div>
+        
+        {ingredients.length > 0 || sections.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {(() => {
+              // Crear un mapa de ingredientes por sección
+              const ingredientsBySection = ingredients.reduce((acc, ingredient) => {
+                const sectionId = ingredient.section_id || 'no-section'
+                if (!acc[sectionId]) {
+                  acc[sectionId] = []
+                }
+                acc[sectionId].push(ingredient)
+                return acc
+              }, {} as Record<string, RecipeIngredient[]>)
+
+              // Asegurar que todas las secciones aparezcan, incluso si están vacías
+              sections.forEach(section => {
+                const sectionId = section.section_id.toString()
+                if (!ingredientsBySection[sectionId]) {
+                  ingredientsBySection[sectionId] = []
+                }
+              })
+
+              return Object.entries(ingredientsBySection).map(([sectionId, sectionIngredients]) => {
+                const section = sectionId === 'no-section' ? null : sections.find(s => s.section_id === parseInt(sectionId))
+                
+                return (
+                  <div key={sectionId} className="space-y-3">
+                    {/* Encabezado de sección */}
+                    {section ? (
+                      <h4 className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-2 rounded-lg">
+                        {section.name}
+                      </h4>
+                    ) : sections.length > 0 ? (
+                      <h4 className="text-sm font-medium text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
+                        Sin sección
+                      </h4>
+                    ) : null}
+                    
+                    {/* Ingredientes de la sección */}
+                    <div className="space-y-2">
+                      {sectionIngredients.length > 0 ? sectionIngredients.map((ingredient, index) => {
+                        const wastePercent = parseFloat(ingredient.waste_percent?.toString()) || 0
+                        const wasteMultiplier = 1 + wastePercent
+                        const quantityPerServing = parseFloat(ingredient.quantity_per_serving?.toString()) || 0
+                        const price = parseFloat(ingredient.base_price?.toString()) || 0
+                        
+                        // Calcular cantidad total para el número actual de porciones
+                        const currentServings = parseInt(formData.servings?.toString() || '') || parseInt(recipe?.servings?.toString() || '') || 1
+                        const totalQuantity = quantityPerServing * currentServings
+                        const ingredientCost = totalQuantity * price * wasteMultiplier
+                        
+                        return (
+                          <div key={`${sectionId}-${index}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900">{ingredient.name || 'Sin nombre'}</p>
+                              <div className="text-xs text-gray-500">
+                                <div className="font-medium">
+                                  {formatDecimal(totalQuantity, 2)} {ingredient.unit || ''}
+                                </div>
+                                <div className="text-xs" style={{ color: '#64748b' }}>
+                                  ({quantityPerServing} {ingredient.unit || ''} por porción)
+                                </div>
+                                {wastePercent > 0 && (
+                                  <span className="text-orange-600"> (+{formatDecimal(wastePercent * 100, 1)}% merma)</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                              <div className="text-right">
+                                <p className="text-sm font-medium text-gray-900">{formatCurrency(ingredientCost)}</p>
+                                <p className="text-xs text-gray-500">{formatCurrency(price)}/{ingredient.unit}</p>
+                              </div>
+                              {isEditing && (
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    onClick={() => {
+                                      setIngredientToEdit(ingredient)
+                                      setIsEditIngredientOpen(true)
+                                    }}
+                                    className="text-orange-600 hover:text-orange-800 transition-colors p-1"
+                                    title="Editar ingrediente"
+                                  >
+                                    <Edit3 className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setIngredientToDelete(ingredient)
+                                      setIsDeleteConfirmOpen(true)
+                                    }}
+                                    className="text-red-600 hover:text-red-800 transition-colors p-1"
+                                    title="Eliminar ingrediente"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      }) : (
+                        <div className="text-center py-4 text-gray-400 text-sm">
+                          Sección vacía
+                          {isEditing && (
+                            <div className="mt-2">
+                              <button 
+                                onClick={() => setIsAddIngredientOpen(true)}
+                                className="text-orange-600 hover:text-orange-700 text-sm font-medium"
+                              >
+                                Añadir ingrediente
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
+            })()}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <div className="text-gray-400 mb-2">🥕</div>
+            <p className="text-sm text-gray-500">No hay ingredientes registrados</p>
+            {isEditing && (
+              <button 
+                onClick={() => setIsAddIngredientOpen(true)}
+                className="mt-2 text-orange-600 hover:text-orange-700 text-sm font-medium"
+              >
+                Añadir primer ingrediente
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Allergens */}
+      {allergens.length > 0 && (
+        <div className="bg-gray-50 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <div className="bg-orange-100 p-2 rounded-lg">
+              <AlertTriangle className="h-5 w-5 text-orange-600" />
+            </div>
+            Alérgenos Detectados
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {allergens.map((allergen) => (
+              <span key={allergen.name} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                {allergen.name}
+              </span>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            Los alérgenos se detectan automáticamente basándose en los ingredientes de la receta
+          </p>
+        </div>
+      )}
+
+    </div>
+  )
+
+  const renderPreparationTab = () => (
+    <div className="space-y-6">
+      {/* Instructions */}
+      <div className="bg-gray-50 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="bg-orange-100 p-2 rounded-lg">
+            <ChefHat className="h-5 w-5 text-orange-600" />
+          </div>
+          Instrucciones de Preparación
+        </h3>
+        
+        {isEditing ? (
+          <textarea
+            rows={8}
+            value={formData.instructions}
+            onChange={(e) => setFormData({ ...formData, instructions: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            placeholder="Instrucciones paso a paso..."
+          />
+        ) : (
+          <div className="prose max-w-none">
+            {recipe?.instructions ? (
+              <pre className="whitespace-pre-wrap text-sm text-gray-900 font-sans">
+                {recipe.instructions}
+              </pre>
+            ) : (
+              <p className="text-gray-500 italic">No hay instrucciones registradas</p>
+            )}
+          </div>
+        )}
+      </div>
+
+    </div>
+  )
+
   if (loading) {
     return (
       <div className="p-6">
@@ -682,22 +1154,22 @@ export default function RecipeDetailPage() {
     <>
       {/* Mobile Fixed Action Bar */}
       <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 sticky top-[60px] z-40">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center space-x-3 min-w-0 flex-1">
             <button
               onClick={() => router.push('/recipes')}
-              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-semibold text-gray-900 truncate">
+            <div className="min-w-0 flex-1 pr-2">
+              <h1 className="text-lg font-semibold text-gray-900 leading-tight break-words">
                 {isNewRecipe ? 'Nueva Receta' : (recipe?.name || 'Cargando...')}
               </h1>
             </div>
           </div>
           
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-shrink-0">
             {!isNewRecipe && (
               <button
                 onClick={() => setIsDeleteConfirmOpen(true)}
@@ -719,7 +1191,7 @@ export default function RecipeDetailPage() {
             {!isNewRecipe && (
               <button
                 onClick={() => router.push('/recipes')}
-                className="p-2 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="hidden md:flex p-2 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                 title="Cerrar y volver"
               >
                 <X className="h-4 w-4" />
@@ -790,9 +1262,9 @@ export default function RecipeDetailPage() {
         </div>
       </header>
 
-      <div className="p-6">
+      <div className="p-6 md:p-6 pt-4 md:pt-6">
         {/* Stats Cards siguiendo patrón TotXo */}
-        {recipe && (
+        {recipe && !isNewRecipe && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between">
@@ -823,23 +1295,34 @@ export default function RecipeDetailPage() {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Margen</p>
-                  {(() => {
-                    const metrics = calculateCostMetrics()
-                    return (
-                      <div className="mt-1">
-                        <p className={`text-2xl font-bold ${metrics && metrics.currentMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {metrics ? formatCurrency(metrics.currentMargin) : formatCurrency(0)}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {metrics ? `${formatDecimal(metrics.currentMarginPercent, 1)}%` : '0%'}
-                        </p>
+                  <p className="text-sm font-medium text-gray-600">Alérgenos</p>
+                  {allergens.length > 0 ? (
+                    <div className="mt-1">
+                      <p className="text-2xl font-bold text-red-600">
+                        {allergens.length}
+                      </p>
+                      <div className="flex flex-wrap gap-1 mt-1 max-w-[140px]">
+                        {allergens.slice(0, 3).map((allergen) => (
+                          <span key={allergen.name} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 truncate">
+                            {allergen.name}
+                          </span>
+                        ))}
+                        {allergens.length > 3 && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+                            +{allergens.length - 3}
+                          </span>
+                        )}
                       </div>
-                    )
-                  })()}
+                    </div>
+                  ) : (
+                    <div className="mt-1">
+                      <p className="text-2xl font-bold text-green-600">0</p>
+                      <p className="text-xs text-gray-500 mt-1">Sin alérgenos</p>
+                    </div>
+                  )}
                 </div>
                 <div className="p-3 rounded-lg bg-orange-100">
-                  <Euro className="h-6 w-6 text-orange-600" />
+                  <AlertTriangle className="h-6 w-6 text-orange-600" />
                 </div>
               </div>
             </div>
@@ -879,210 +1362,23 @@ export default function RecipeDetailPage() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Basic Information */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <div className="bg-orange-100 p-2 rounded-lg">
-                  <Info className="h-5 w-5 text-orange-600" />
-                </div>
-                Información Básica
-              </h3>
-              
-              <div className="space-y-6">
-                {/* Name and Categories */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Nombre de la receta <span className="text-red-500">*</span>
-                    </label>
-                    {isEditing ? (
-                      <div>
-                        <input
-                          type="text"
-                          value={formData.name}
-                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                          placeholder="Nombre de la receta"
-                        />
-                        {validationErrors.name && (
-                          <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-900">{recipe?.name}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Categorías
-                    </label>
-                    {isEditing ? (
-                      <div className="space-y-2 max-h-24 overflow-y-auto border border-gray-300 rounded-lg p-2">
-                        {availableCategories.map((category) => (
-                          <label key={category.category_id} className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              checked={selectedCategoryIds.includes(category.category_id)}
-                              onChange={(e) => handleCategoryChange(category.category_id, e.target.checked)}
-                              className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                            />
-                            <span className="text-sm text-gray-700">{category.name}</span>
-                          </label>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-900">
-                        {categories.length > 0 ? categories.join(', ') : 'Sin categoría'}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Time, Difficulty, Production Servings */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tiempo (min)
-                    </label>
-                    {isEditing ? (
-                      <input
-                        type="number"
-                        value={formData.prep_time}
-                        onChange={(e) => setFormData({ ...formData, prep_time: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        placeholder="Minutos"
-                      />
-                    ) : (
-                      <p className="text-sm text-gray-900">
-                        {recipe?.prep_time ? `${recipe.prep_time} min` : 'No especificado'}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Dificultad
-                    </label>
-                    {isEditing ? (
-                      <select
-                        value={formData.difficulty}
-                        onChange={(e) => setFormData({ ...formData, difficulty: e.target.value as '' | 'easy' | 'medium' | 'hard' })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                      >
-                        <option value="">Seleccionar</option>
-                        {difficultyOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <p className="text-sm text-gray-900">
-                        {recipe?.difficulty ? difficultyTranslations[recipe.difficulty] : 'No especificado'}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Raciones mínimas <span className="text-red-500">*</span>
-                    </label>
-                    {isEditing ? (
-                      <div>
-                        <input
-                          type="number"
-                          min="1"
-                          value={formData.production_servings}
-                          onChange={(e) => setFormData({ ...formData, production_servings: parseInt(e.target.value) || 1 })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        />
-                        {validationErrors.production_servings && (
-                          <p className="mt-1 text-sm text-red-600">{validationErrors.production_servings}</p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-900">{recipe?.production_servings}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Servings and Price */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Comensales <span className="text-red-500">*</span>
-                    </label>
-                    {isEditing ? (
-                      <div>
-                        <input
-                          type="number"
-                          min={recipe?.production_servings || 1}
-                          value={formData.servings}
-                          onChange={(e) => {
-                            const newServings = parseInt(e.target.value) || 1
-                            setFormData({ 
-                              ...formData, 
-                              servings: newServings,
-                              net_price: formData.price_per_serving 
-                                ? (parseFloat(formData.price_per_serving) * newServings).toString()
-                                : formData.net_price
-                            })
-                          }}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        />
-                        {validationErrors.servings && (
-                          <p className="mt-1 text-sm text-red-600">{validationErrors.servings}</p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-900">{recipe?.servings}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Precio por comensal <span className="text-red-500">*</span>
-                    </label>
-                    {isEditing ? (
-                      <div>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.price_per_serving}
-                          onChange={(e) => {
-                            const newPricePerServing = e.target.value
-                            setFormData({ 
-                              ...formData, 
-                              price_per_serving: newPricePerServing,
-                              net_price: newPricePerServing && formData.servings 
-                                ? (parseFloat(newPricePerServing) * formData.servings).toString()
-                                : formData.net_price
-                            })
-                          }}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                          placeholder="0.00"
-                        />
-                        {validationErrors.price_per_serving && (
-                          <p className="mt-1 text-sm text-red-600">{validationErrors.price_per_serving}</p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-900">
-                        {recipe?.net_price && recipe.servings 
-                          ? formatCurrency(recipe.net_price / recipe.servings)
-                          : formatCurrency(0)
-                        }
-                      </p>
-                    )}
-                  </div>
-
-                </div>
-              </div>
-            </div>
+          {/* Main Content with Tabs */}
+          <div className="lg:col-span-2">
+            <UnifiedTabs
+              tabs={[
+                { id: 'general', label: 'Información General', icon: ChefHat },
+                { id: 'ingredients', label: 'Ingredientes', icon: Package },
+                { id: 'preparation', label: 'Preparación', icon: BookOpen }
+              ]}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              variant="detail"
+              mobileStyle="orange"
+            >
+              {activeTab === 'general' && renderGeneralTab()}
+              {activeTab === 'ingredients' && renderIngredientsTab()}
+              {activeTab === 'preparation' && renderPreparationTab()}
+            </UnifiedTabs>
 
             {/* Cost Analysis - Mobile only */}
             {(() => {
@@ -1090,12 +1386,12 @@ export default function RecipeDetailPage() {
               if (!metrics) return null
               
               return (
-                <div className="lg:hidden bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="lg:hidden mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <div className="bg-orange-100 p-2 rounded-lg">
                       <Euro className="h-5 w-5 text-orange-600" />
                     </div>
-                    Análisis de Costes
+                    Análisis de Costos
                   </h3>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
@@ -1122,212 +1418,16 @@ export default function RecipeDetailPage() {
                       </div>
                     </div>
                     <div className="flex items-center justify-between bg-orange-50 p-3 rounded-lg">
-                      <span className="text-sm text-orange-700">Precio Sugerido (40%):</span>
-                      <span className="font-medium text-orange-700">{formatCurrency(metrics.suggestedPrice40)}</span>
+                      <span className="text-sm text-orange-700">Precio Sugerido ({metrics.foodCostPercent}%):</span>
+                      <span className="font-medium text-orange-700">{formatCurrency(metrics.suggestedPrice)}</span>
                     </div>
                   </div>
                 </div>
               )
             })()}
-
-            {/* Ingredients */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <div className="bg-orange-100 p-2 rounded-lg">
-                    <Package className="h-5 w-5 text-orange-600" />
-                  </div>
-                  Ingredientes
-                </h3>
-                {isEditing && (
-                  <div className="flex items-center space-x-2">
-                    <button 
-                      onClick={() => setIsManageSectionsOpen(true)}
-                      className="inline-flex items-center text-gray-600 hover:text-gray-800 text-sm font-medium transition-colors"
-                    >
-                      <Edit3 className="h-4 w-4 mr-1" />
-                      Secciones
-                    </button>
-                    <button 
-                      onClick={() => setIsAddIngredientOpen(true)}
-                      className="inline-flex items-center text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Añadir
-                    </button>
-                  </div>
-                )}
-              </div>
-              
-              {ingredients.length > 0 || sections.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {/* Organizar ingredientes por secciones - cada sección en su columna */}
-                  {(() => {
-                    // Crear un mapa de ingredientes por sección
-                    const ingredientsBySection = ingredients.reduce((acc, ingredient) => {
-                      const sectionId = ingredient.section_id || 'no-section'
-                      if (!acc[sectionId]) {
-                        acc[sectionId] = []
-                      }
-                      acc[sectionId].push(ingredient)
-                      return acc
-                    }, {} as Record<string, RecipeIngredient[]>)
-
-                    // Asegurar que todas las secciones aparezcan, incluso si están vacías
-                    sections.forEach(section => {
-                      const sectionId = section.section_id.toString()
-                      if (!ingredientsBySection[sectionId]) {
-                        ingredientsBySection[sectionId] = []
-                      }
-                    })
-
-                    return Object.entries(ingredientsBySection).map(([sectionId, sectionIngredients]) => {
-                      const section = sectionId === 'no-section' ? null : sections.find(s => s.section_id === parseInt(sectionId))
-                      
-                      return (
-                        <div key={sectionId} className="space-y-3">
-                          {/* Encabezado de sección */}
-                          {section ? (
-                            <h4 className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-2 rounded-lg">
-                              {section.name}
-                            </h4>
-                          ) : sections.length > 0 ? (
-                            <h4 className="text-sm font-medium text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
-                              Sin sección
-                            </h4>
-                          ) : null}
-                          
-                          {/* Ingredientes de la sección */}
-                          <div className="space-y-2">
-                            {sectionIngredients.length > 0 ? sectionIngredients.map((ingredient, index) => {
-                              const wastePercent = parseFloat(ingredient.waste_percent?.toString()) || 0
-                              const wasteMultiplier = 1 + wastePercent
-                              const quantityPerServing = parseFloat(ingredient.quantity_per_serving?.toString()) || 0
-                              const price = parseFloat(ingredient.base_price?.toString()) || 0
-                              
-                              // Calcular cantidad total para el número actual de porciones
-                              const currentServings = parseInt(formData.servings?.toString() || '') || parseInt(recipe?.servings?.toString() || '') || 1
-                              const totalQuantity = quantityPerServing * currentServings
-                              const ingredientCost = totalQuantity * price * wasteMultiplier
-                              
-                              return (
-                                <div key={`${sectionId}-${index}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                  <div className="flex-1">
-                                    <p className="text-sm font-medium text-gray-900">{ingredient.name || 'Sin nombre'}</p>
-                                    <div className="text-xs text-gray-500">
-                                      <div className="font-medium">
-                                        {formatDecimal(totalQuantity, 2)} {ingredient.unit || ''}
-                                      </div>
-                                      <div className="text-xs" style={{ color: '#64748b' }}>
-                                        ({quantityPerServing} {ingredient.unit || ''} por porción)
-                                      </div>
-                                      {wastePercent > 0 && (
-                                        <span className="text-orange-600"> (+{formatDecimal(wastePercent * 100, 1)}% merma)</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center space-x-3">
-                                    <div className="text-right">
-                                      <p className="text-sm font-medium text-gray-900">{formatCurrency(ingredientCost)}</p>
-                                      <p className="text-xs text-gray-500">{formatCurrency(price)}/{ingredient.unit}</p>
-                                    </div>
-                                    {isEditing && (
-                                      <div className="flex items-center space-x-1">
-                                        <button
-                                          onClick={() => {
-                                            setIngredientToEdit(ingredient)
-                                            setIsEditIngredientOpen(true)
-                                          }}
-                                          className="text-orange-600 hover:text-orange-800 transition-colors p-1"
-                                          title="Editar ingrediente"
-                                        >
-                                          <Edit3 className="h-4 w-4" />
-                                        </button>
-                                        <button
-                                          onClick={() => {
-                                            setIngredientToDelete(ingredient)
-                                            setIsDeleteConfirmOpen(true)
-                                          }}
-                                          className="text-red-600 hover:text-red-800 transition-colors p-1"
-                                          title="Eliminar ingrediente"
-                                        >
-                                          <X className="h-4 w-4" />
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              )
-                            }) : (
-                              <div className="text-center py-4 text-gray-400 text-sm">
-                                Sección vacía
-                                {isEditing && (
-                                  <div className="mt-2">
-                                    <button 
-                                      onClick={() => setIsAddIngredientOpen(true)}
-                                      className="text-orange-600 hover:text-orange-700 text-sm font-medium"
-                                    >
-                                      Añadir ingrediente
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })
-                  })()}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <div className="text-gray-400 mb-2">🥕</div>
-                  <p className="text-sm text-gray-500">No hay ingredientes registrados</p>
-                  {isEditing && (
-                    <button 
-                      onClick={() => setIsAddIngredientOpen(true)}
-                      className="mt-2 text-orange-600 hover:text-orange-700 text-sm font-medium"
-                    >
-                      Añadir primer ingrediente
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Instructions */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <div className="bg-orange-100 p-2 rounded-lg">
-                  <ChefHat className="h-5 w-5 text-orange-600" />
-                </div>
-                Instrucciones
-              </h3>
-              
-              {isEditing ? (
-                <textarea
-                  rows={8}
-                  value={formData.instructions}
-                  onChange={(e) => setFormData({ ...formData, instructions: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  placeholder="Instrucciones paso a paso..."
-                />
-              ) : (
-                <div className="prose max-w-none">
-                  {recipe?.instructions ? (
-                    <pre className="whitespace-pre-wrap text-sm text-gray-900 font-sans">
-                      {recipe.instructions}
-                    </pre>
-                  ) : (
-                    <p className="text-gray-500 italic">No hay instrucciones registradas</p>
-                  )}
-                </div>
-              )}
-            </div>
-
           </div>
 
-          {/* Sidebar */}
+          {/* Sidebar - Cost Analysis */}
           <div className="space-y-6">
             {/* Cost Analysis */}
             {(() => {
@@ -1340,7 +1440,7 @@ export default function RecipeDetailPage() {
                     <div className="bg-orange-100 p-2 rounded-lg">
                       <Euro className="h-5 w-5 text-orange-600" />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900">Análisis de Costes</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Análisis de Costos</h3>
                   </div>
                   
                   <div className="space-y-4">
@@ -1361,7 +1461,7 @@ export default function RecipeDetailPage() {
                     <div className="bg-gray-50 rounded-lg p-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium text-gray-600">Por Comensal</p>
+                          <p className="text-sm font-medium text-gray-600">Coste por Comensal</p>
                           <p className="text-2xl font-bold text-gray-900">{formatCurrency(metrics.costPerServing)}</p>
                         </div>
                         <div className="bg-orange-100 p-3 rounded-lg">
@@ -1410,8 +1510,8 @@ export default function RecipeDetailPage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-orange-700">Precio Sugerido</p>
-                          <p className="text-sm text-orange-600 mb-1">Margen 40%</p>
-                          <p className="text-xl font-bold text-orange-800">{formatCurrency(metrics.suggestedPrice40)}</p>
+                          <p className="text-sm text-orange-600 mb-1">Food Cost {metrics.foodCostPercent}%</p>
+                          <p className="text-xl font-bold text-orange-800">{formatCurrency(metrics.suggestedPrice)}</p>
                         </div>
                         <div className="bg-orange-100 p-3 rounded-lg">
                           <ChefHat className="h-6 w-6 text-orange-600" />
@@ -1421,25 +1521,7 @@ export default function RecipeDetailPage() {
                   </div>
                 </div>
               )
-            })()}
-
-            {allergens.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <div className="bg-orange-100 p-2 rounded-lg">
-                    <AlertTriangle className="h-5 w-5 text-orange-600" />
-                  </div>
-                  Alérgenos
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {allergens.map((allergen) => (
-                    <span key={allergen.name} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                      {allergen.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+            })()} 
 
           </div>
         </div>
@@ -1452,6 +1534,7 @@ export default function RecipeDetailPage() {
         onAdd={handleAddIngredient}
         sections={sections}
         existingIngredients={ingredients}
+        onCreateSection={handleAddSection}
       />
 
       <EditRecipeIngredientModal
@@ -1463,6 +1546,7 @@ export default function RecipeDetailPage() {
         onUpdate={handleEditIngredient}
         ingredient={ingredientToEdit}
         sections={sections}
+        onCreateSection={handleAddSection}
       />
 
       <ManageSectionsModal

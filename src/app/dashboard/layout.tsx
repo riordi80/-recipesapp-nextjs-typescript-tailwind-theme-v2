@@ -21,9 +21,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         
         {/* Main Content */}
         <div className="lg:ml-64">
-          <div className="flex-1 p-6">
-            {children}
-          </div>
+          {children}
         </div>
       </div>
     </AuthGuard>

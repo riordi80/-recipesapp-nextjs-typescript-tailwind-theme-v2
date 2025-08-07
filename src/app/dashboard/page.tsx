@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/context/AuthContext'
 import { LayoutDashboard, BookOpen, Package, Users, Calendar, Clock, Plus } from 'lucide-react'
+import Link from 'next/link'
 
 export default function DashboardPage() {
   const { user } = useAuth()
@@ -116,22 +117,22 @@ export default function DashboardPage() {
           </div>
           <div className="p-6">
             <div className="grid grid-cols-2 gap-4">
-              <button className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <Link href="/recipes/new" className="flex flex-col items-center justify-center text-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                 <BookOpen className="h-8 w-8 text-blue-600 mb-2" />
                 <span className="text-sm font-medium text-gray-900">Nueva Receta</span>
-              </button>
-              <button className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              </Link>
+              <Link href="/ingredients/new" className="flex flex-col items-center justify-center text-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                 <Package className="h-8 w-8 text-green-600 mb-2" />
                 <span className="text-sm font-medium text-gray-900">Añadir Ingrediente</span>
-              </button>
-              <button className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              </Link>
+              <Link href="/suppliers/new" className="flex flex-col items-center justify-center text-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                 <Users className="h-8 w-8 text-purple-600 mb-2" />
                 <span className="text-sm font-medium text-gray-900">Nuevo Proveedor</span>
-              </button>
-              <button className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              </Link>
+              <Link href="/events/new" className="flex flex-col items-center justify-center text-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                 <Calendar className="h-8 w-8 text-orange-600 mb-2" />
                 <span className="text-sm font-medium text-gray-900">Crear Evento</span>
-              </button>
+              </Link>
             </div>
           </div>
         </div>

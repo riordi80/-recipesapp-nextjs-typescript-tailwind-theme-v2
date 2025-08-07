@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'  
 import { useAuth } from '@/context/AuthContext'
 import { Eye, EyeOff, Mail, Lock, ChefHat, ArrowRight } from 'lucide-react'
+import Link from 'next/link'
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -65,10 +66,10 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
-          <div className="flex items-center justify-center space-x-2 mb-6">
+          <Link href="/" className="flex items-center justify-center space-x-2 mb-6">
             <ChefHat className="h-10 w-10 text-orange-600" />
             <span className="text-2xl font-bold text-gray-900">RecetasAPI</span>
-          </div>
+          </Link>
           <h2 className="text-3xl font-bold text-gray-900">
             Inicia sesión
           </h2>
@@ -141,6 +142,15 @@ export default function LoginPage() {
                   Recordarme
                 </label>
               </div>
+
+              <div className="text-sm">
+                <Link
+                  href="/recovery-password"
+                  className="text-orange-600 hover:text-orange-500 font-medium transition-colors"
+                >
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              </div>
             </div>
 
             {/* Error message */}
@@ -170,7 +180,7 @@ export default function LoginPage() {
         {/* Footer */}
         <div className="text-center">
           <p className="text-sm text-gray-600">
-            Sistema de gestión de recetas v2.0
+            Sistema de gestión de recetas v1.85
           </p>
         </div>
       </div>

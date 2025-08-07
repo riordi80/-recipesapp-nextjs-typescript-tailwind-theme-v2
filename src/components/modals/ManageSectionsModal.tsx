@@ -87,7 +87,7 @@ export default function ManageSectionsModal({
       <Modal
         isOpen={isOpen}
         onClose={onClose}
-        title="Gestionar Secciones de Ingredientes"
+        title="Gestionar secciones de ingredientes"
         size="md"
       >
         <div className="p-6">

@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "build-hosting": "NODE_OPTIONS=\"--max-old-space-size=128\" next build",
+    "start-hosting": "NODE_OPTIONS=\"--max-old-space-size=96\" next start -p 3001"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.7",

@@ -477,22 +477,22 @@ export default function EventDetailPage() {
     <>
       {/* Mobile Fixed Action Bar */}
       <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 sticky top-[60px] z-40">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center space-x-3 min-w-0 flex-1">
             <button
               onClick={() => router.push('/events')}
-              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-semibold text-gray-900 truncate">
+            <div className="min-w-0 flex-1 pr-2">
+              <h1 className="text-lg font-semibold text-gray-900 leading-tight break-words">
                 {isNewEvent ? 'Nuevo Evento' : (event?.name || 'Cargando...')}
               </h1>
             </div>
           </div>
           
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-shrink-0">
             {!isNewEvent && (
               <button
                 onClick={() => setIsDeleteOpen(true)}
@@ -514,7 +514,7 @@ export default function EventDetailPage() {
             {!isNewEvent && (
               <button
                 onClick={() => router.push('/events')}
-                className="p-2 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="hidden md:flex p-2 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                 title="Cerrar y volver"
               >
                 <X className="h-4 w-4" />
@@ -586,7 +586,7 @@ export default function EventDetailPage() {
         </div>
       </header>
 
-      <div className="p-6">
+      <div className="p-6 md:p-6 pt-4 md:pt-6">
 
       {/* Stats Cards siguiendo patrón de Recipes */}
       {event && (
@@ -594,7 +594,7 @@ export default function EventDetailPage() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Invitados</p>
+                <p className="text-sm font-medium text-gray-600">Comensales</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{event.guests_count}</p>
               </div>
               <div className="bg-orange-100 p-3 rounded-lg">
@@ -783,7 +783,7 @@ export default function EventDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Número de Invitados <span className="text-red-500">*</span>
+                    Número de Comensales <span className="text-red-500">*</span>
                   </label>
                   {isEditing ? (
                     <input
@@ -901,7 +901,7 @@ export default function EventDetailPage() {
                   <div className="bg-gray-50 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-600">Costo Total Menú</p>
+                        <p className="text-sm font-medium text-gray-600">Coste Total Menú</p>
                         <p className="text-2xl font-bold text-gray-900">€{formatCurrency(metrics.totalCost)}</p>
                       </div>
                       <div className="bg-orange-100 p-3 rounded-lg">
@@ -914,7 +914,7 @@ export default function EventDetailPage() {
                   <div className="bg-gray-50 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-600">Por Invitado</p>
+                        <p className="text-sm font-medium text-gray-600">Coste por Comensal</p>
                         <p className="text-2xl font-bold text-gray-900">€{formatCurrency(metrics.costPerGuest)}</p>
                       </div>
                       <div className="bg-orange-100 p-3 rounded-lg">
@@ -985,7 +985,7 @@ export default function EventDetailPage() {
                 {eventRecipes.length > 0 ? (
                   <div className="space-y-4">
                     {eventRecipes.map((recipe) => (
-                      <div key={recipe.recipe_id} className="group relative flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition-colors">
+                      <div key={recipe.recipe_id} className="group relative flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition-colors overflow-hidden">
                         <div className="flex items-center space-x-3">
                           <div className="bg-orange-100 p-2 rounded-full">
                             <ChefHat className="h-4 w-4 text-orange-600" />
@@ -993,14 +993,14 @@ export default function EventDetailPage() {
                           <div>
                             <p className="font-medium text-gray-900">{recipe.recipe_name}</p>
                             <p className="text-sm text-gray-500">
-                              {courseTypeLabels[recipe.course_type]} • {recipe.portions} porciones
+                              {courseTypeLabels[recipe.course_type]} • {recipe.portions} raciones
                             </p>
                             {recipe.notes && (
                               <p className="text-xs text-gray-400 mt-1 italic">{recipe.notes}</p>
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-3 flex-shrink-0 min-w-0">
                           <div className="text-right">
                             <p className="text-sm font-medium text-gray-900">
                               €{calculateRecipeCost(recipe).toLocaleString('es-ES', { 
@@ -1009,24 +1009,22 @@ export default function EventDetailPage() {
                               })}
                             </p>
                           </div>
-                          {/* Actions dropdown */}
-                          <div className="relative opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="flex items-center space-x-1">
-                              <button
-                                onClick={() => openEditRecipeModal(recipe)}
-                                className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded transition-colors"
-                                title="Editar receta"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => openDeleteRecipeModal(recipe)}
-                                className="p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded transition-colors"
-                                title="Eliminar receta"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
+                          {/* Actions buttons - always visible on mobile, hover on desktop */}
+                          <div className="flex items-center space-x-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0">
+                            <button
+                              onClick={() => openEditRecipeModal(recipe)}
+                              className="p-1.5 md:p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded transition-colors"
+                              title="Editar receta"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => openDeleteRecipeModal(recipe)}
+                              className="p-1.5 md:p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded transition-colors"
+                              title="Eliminar receta"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -1147,10 +1145,18 @@ export default function EventDetailPage() {
                                 <p className="text-sm text-gray-500 mt-1">{recipe.description}</p>
                               )}
                               <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                                <span>👨‍🍳 {recipe.difficulty || 'N/A'}</span>
-                                <span>⏱️ {recipe.prep_time ? `${recipe.prep_time} min` : 'N/A'}</span>
-                                <span>🍽️ {recipe.servings} porciones</span>
-                                <span>💰 €{(Number(recipe.cost_per_serving) || 0).toFixed(2)}/porción</span>
+                                <span className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  {recipe.prep_time ? `${recipe.prep_time} min` : 'N/A'}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Utensils className="h-3 w-3" />
+                                  {recipe.servings} porciones
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Euro className="h-3 w-3" />
+                                  {(Number(recipe.cost_per_serving) || 0).toFixed(2)}€/porción
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -1351,10 +1357,31 @@ export default function EventDetailPage() {
             </div>
 
             {/* Información de costo */}
-            {editingRecipe?.cost_per_serving && (
+            {editingRecipe && (
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
                 <p className="text-sm text-orange-700">
-                  <span className="font-medium">Costo total:</span> €{((Number(editingRecipe.cost_per_serving) || 0) * editFormData.portions).toFixed(2)}
+                  <span className="font-medium">Costo total:</span> €{(() => {
+                    // Usar el mismo cálculo que calculateRecipeCost pero con las porciones del formulario
+                    if (editingRecipe.ingredients && editingRecipe.ingredients.length > 0) {
+                      const recipeCost = editingRecipe.ingredients.reduce((ingredientTotal, ingredient) => {
+                        const quantity = parseFloat(ingredient.quantity_per_serving?.toString()) || 0
+                        const price = parseFloat(ingredient.base_price?.toString()) || 0
+                        const wastePercent = parseFloat(ingredient.waste_percent?.toString()) || 0
+                        const wasteMultiplier = 1 + wastePercent
+                        
+                        // Cantidad total necesaria para las porciones del formulario
+                        const totalQuantity = quantity * editFormData.portions
+                        // Costo total de este ingrediente
+                        const ingredientCost = totalQuantity * price * wasteMultiplier
+                        
+                        return ingredientTotal + ingredientCost
+                      }, 0)
+                      return recipeCost.toFixed(2)
+                    } else {
+                      // Fallback: usar cost_per_serving
+                      return ((Number(editingRecipe.cost_per_serving) || 0) * editFormData.portions).toFixed(2)
+                    }
+                  })()}
                 </p>
               </div>
             )}

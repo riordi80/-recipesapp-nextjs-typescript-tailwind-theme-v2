@@ -14,14 +14,17 @@ import {
   CheckCircle,
   Calendar,
   Heart,
-  Info
+  Info,
+  Building,
+  Plus,
+  Activity
 } from 'lucide-react'
 import { apiGet, apiPost, apiDelete, apiPut } from '@/lib/api'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { SeasonChips, AllergenChips } from '@/components/ui/Chips'
-import Chips from '@/components/ui/Chips'
 import { useToastHelpers } from '@/context/ToastContext'
 import SupplierManager from '@/components/ui/SupplierManager'
+import UnifiedTabs from '@/components/ui/DetailTabs'
 
 interface Ingredient {
   ingredient_id: number
@@ -76,8 +79,12 @@ export default function IngredientDetailPage() {
   const [ingredient, setIngredient] = useState<Ingredient | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isEditing, setIsEditing] = useState(true) // Siempre iniciar en modo edición
+  const [isEditing] = useState(true) // Siempre iniciar en modo edición
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+  const [preferredSupplier, setPreferredSupplier] = useState<{id: number, name: string} | null>(null)
+  
+  // Tabs state
+  const [activeTab, setActiveTab] = useState('general')
   
   
   // Delete modal state
@@ -139,6 +146,14 @@ export default function IngredientDetailPage() {
     
     loadData()
   }, [ingredientId, isNewIngredient])
+
+  // Handle URL hash for direct tab navigation
+  useEffect(() => {
+    const hash = window.location.hash.substring(1) // Remove the #
+    if (hash && ['general', 'stock', 'nutrition', 'suppliers'].includes(hash)) {
+      setActiveTab(hash)
+    }
+  }, [])
 
   // Debug formData changes
   useEffect(() => {
@@ -203,6 +218,9 @@ export default function IngredientDetailPage() {
       const response = await apiGet<Ingredient>(`/ingredients/${ingredientId}`)
       const ingredientData = response.data
       setIngredient(ingredientData)
+      
+      // Load preferred supplier info
+      await loadPreferredSupplier()
       
       // Format date for input (YYYY-MM-DD)
       let expirationDate = ''
@@ -303,6 +321,25 @@ export default function IngredientDetailPage() {
       console.error('Error loading ingredient:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadPreferredSupplier = async () => {
+    try {
+      const response = await apiGet(`/ingredients/${ingredientId}/suppliers`)
+      const suppliers = response.data
+      const preferred = suppliers.find((supplier: any) => supplier.is_preferred_supplier)
+      if (preferred) {
+        setPreferredSupplier({
+          id: preferred.supplier_id,
+          name: preferred.name
+        })
+      } else {
+        setPreferredSupplier(null)
+      }
+    } catch (error) {
+      console.error('Error loading preferred supplier:', error)
+      setPreferredSupplier(null)
     }
   }
 
@@ -490,6 +527,531 @@ export default function IngredientDetailPage() {
     return diffDays
   }
 
+  // Tab content renderers
+  const renderGeneralTab = () => (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Left Column - Basic Information - Takes 2/3 of the width */}
+      <div className="lg:col-span-2 space-y-6">
+        <div className="bg-gray-50 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <div className="bg-orange-100 p-2 rounded-lg">
+              <Package className="h-5 w-5 text-orange-600" />
+            </div>
+            Información Básica
+          </h3>
+          
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nombre del ingrediente <span className="text-red-500">*</span>
+              </label>
+              {isEditing ? (
+                <div>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="Nombre del ingrediente"
+                  />
+                  {validationErrors.name && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-gray-900">{ingredient?.name}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Categoría
+              </label>
+              {isEditing ? (
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                >
+                  <option value="">Seleccionar categoría</option>
+                  {filterOptions.categories.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-gray-900">
+                  {ingredient?.category || 'Sin categoría'}
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Unidad <span className="text-red-500">*</span>
+                </label>
+                {isEditing ? (
+                  <select
+                    value={formData.unit}
+                    onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  >
+                    <option value="kg">kg</option>
+                    <option value="g">g</option>
+                    <option value="l">l</option>
+                    <option value="ml">ml</option>
+                    <option value="ud">unidad</option>
+                  </select>
+                ) : (
+                  <p className="text-gray-900">{ingredient?.unit || 'kg'}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Porcentaje de merma (%)
+                </label>
+                {isEditing ? (
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={formData.waste_percent}
+                    onChange={(e) => setFormData({ ...formData, waste_percent: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="0"
+                  />
+                ) : (
+                  <p className="text-gray-900">{ingredient?.waste_percent || 0}%</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Costo por unidad (€)
+              </label>
+              {isEditing ? (
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.cost_per_unit}
+                  onChange={(e) => setFormData({ ...formData, cost_per_unit: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="0.00"
+                />
+              ) : (
+                <p className="text-gray-900">{formatCurrency(ingredient?.cost_per_unit)}</p>
+              )}
+            </div>
+
+            {/* Availability */}
+            {isEditing && (
+              <div className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  id="is_available"
+                  checked={formData.is_available}
+                  onChange={(e) => setFormData({ ...formData, is_available: e.target.checked })}
+                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                />
+                <label htmlFor="is_available" className="text-sm font-medium text-gray-700">
+                  Ingrediente disponible
+                </label>
+              </div>
+            )}
+
+            {/* Comment */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Comentarios
+              </label>
+              {isEditing ? (
+                <textarea
+                  rows={3}
+                  value={formData.comment}
+                  onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="Comentarios adicionales sobre el ingrediente..."
+                />
+              ) : (
+                <p className="text-sm text-gray-900">
+                  {ingredient?.comment || 'Sin comentarios'}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Column - Additional Information - Takes 1/3 of the width */}
+      <div className="lg:col-span-1 space-y-6">
+        {ingredient && (
+          <div className="bg-gray-50 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <div className="bg-orange-100 p-2 rounded-lg">
+                <Info className="h-5 w-5 text-orange-600" />
+              </div>
+              Información Adicional
+            </h3>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">Disponibilidad:</span>
+                <span className={`text-sm font-semibold px-2 py-1 rounded-full ${ingredient.is_available ? 'text-green-700 bg-green-100' : 'text-red-700 bg-red-100'}`}>
+                  {ingredient.is_available ? 'Disponible' : 'No disponible'}
+                </span>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">Proveedor:</span>
+                {preferredSupplier ? (
+                  <button
+                    onClick={() => setActiveTab('suppliers')}
+                    className="text-sm font-medium text-orange-600 hover:text-orange-700 transition-colors cursor-pointer"
+                  >
+                    {preferredSupplier.name}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setActiveTab('suppliers')}
+                    className="inline-flex items-center text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    <span className="hidden md:inline">Configurar proveedores</span>
+                    <span className="md:hidden">Configurar</span>
+                  </button>
+                )}
+              </div>
+              
+              {ingredient.expiration_date && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Fecha de expiración:</span>
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-gray-900">
+                      {formatDate(ingredient.expiration_date)}
+                    </div>
+                    <div className="text-xs font-medium mt-1">
+                      {(() => {
+                        const days = getDaysUntilExpiry(ingredient.expiration_date)
+                        if (days === null) return null
+                        if (days < 0) return <span className="text-red-600 bg-red-100 px-2 py-1 rounded-full">Expirado hace {Math.abs(days)} días</span>
+                        if (days === 0) return <span className="text-red-600 bg-red-100 px-2 py-1 rounded-full">Expira hoy</span>
+                        if (days <= 7) return <span className="text-yellow-600 bg-yellow-100 px-2 py-1 rounded-full">Expira en {days} días</span>
+                        return <span className="text-green-600 bg-green-100 px-2 py-1 rounded-full">Expira en {days} días</span>
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  const renderStockTab = () => (
+    <div className="space-y-6">
+      {/* Stock Management */}
+      <div className="bg-gray-50 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="bg-orange-100 p-2 rounded-lg">
+            <Package className="h-5 w-5 text-orange-600" />
+          </div>
+          Gestión de Stock
+        </h3>
+        
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Stock actual
+              </label>
+              {isEditing ? (
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.stock}
+                  onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="0"
+                />
+              ) : (
+                <p className="text-gray-900">{ingredient?.stock || 0} {ingredient?.unit || 'kg'}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Stock mínimo
+              </label>
+              {isEditing ? (
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.stock_minimum}
+                  onChange={(e) => setFormData({ ...formData, stock_minimum: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="0"
+                />
+              ) : (
+                <p className="text-gray-900">{ingredient?.stock_minimum || 0} {ingredient?.unit || 'kg'}</p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Fecha de expiración
+            </label>
+            {isEditing ? (
+              <input
+                type="date"
+                value={formData.expiration_date}
+                onChange={(e) => setFormData({ ...formData, expiration_date: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              />
+            ) : (
+              <div>
+                <p className="text-gray-900">{formatDate(ingredient?.expiration_date)}</p>
+                {ingredient?.expiration_date && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    {(() => {
+                      const days = getDaysUntilExpiry(ingredient.expiration_date)
+                      if (days === null) return null
+                      if (days < 0) return <span className="text-red-600">Expirado hace {Math.abs(days)} días</span>
+                      if (days === 0) return <span className="text-red-600">Expira hoy</span>
+                      if (days <= 7) return <span className="text-yellow-600">Expira en {days} días</span>
+                      return <span className="text-green-600">Expira en {days} días</span>
+                    })()}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Future: Stock History, Movements, etc. */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="bg-orange-100 p-2 rounded-lg">
+            <Calendar className="h-4 w-4 text-orange-600" />
+          </div>
+          Historial de Movimientos
+        </h4>
+        <div className="text-center py-8">
+          <Calendar className="h-8 w-8 mx-auto text-gray-400 mb-4" />
+          <p className="text-gray-500 text-sm">
+            Próximamente: historial de entradas, salidas y ajustes de stock
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderNutritionTab = () => (
+    <div className="space-y-6">
+      {/* Nutritional Information */}
+      <div className="bg-gray-50 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="bg-orange-100 p-2 rounded-lg">
+            <Activity className="h-5 w-5 text-orange-600" />
+          </div>
+          Información Nutricional (por 100g)
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Calorías
+            </label>
+            {isEditing ? (
+              <input
+                type="number"
+                step="0.1"
+                value={formData.calories_per_100g}
+                onChange={(e) => setFormData({ ...formData, calories_per_100g: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder="0"
+              />
+            ) : (
+              <p className="text-gray-900">{ingredient?.calories_per_100g || 0} kcal</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Proteínas (g)
+            </label>
+            {isEditing ? (
+              <input
+                type="number"
+                step="0.1"
+                value={formData.protein_per_100g}
+                onChange={(e) => setFormData({ ...formData, protein_per_100g: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder="0"
+              />
+            ) : (
+              <p className="text-gray-900">{ingredient?.protein_per_100g || 0}g</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Carbohidratos (g)
+            </label>
+            {isEditing ? (
+              <input
+                type="number"
+                step="0.1"
+                value={formData.carbs_per_100g}
+                onChange={(e) => setFormData({ ...formData, carbs_per_100g: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder="0"
+              />
+            ) : (
+              <p className="text-gray-900">{ingredient?.carbs_per_100g || 0}g</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Grasas (g)
+            </label>
+            {isEditing ? (
+              <input
+                type="number"
+                step="0.1"
+                value={formData.fat_per_100g}
+                onChange={(e) => setFormData({ ...formData, fat_per_100g: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder="0"
+              />
+            ) : (
+              <p className="text-gray-900">{ingredient?.fat_per_100g || 0}g</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Allergens and Season */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-gray-50 rounded-lg p-6">
+          <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <div className="bg-orange-100 p-2 rounded-lg">
+              <AlertTriangle className="h-4 w-4 text-orange-600" />
+            </div>
+            Alérgenos
+          </h4>
+          {isEditing ? (
+            <AllergenChips
+              selected={formData.allergens}
+              options={filterOptions.allergens}
+              onChange={(allergens) => setFormData({ ...formData, allergens })}
+            />
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {ingredient?.allergens && ingredient.allergens.length > 0 ? (
+                ingredient.allergens.map((allergen, index) => (
+                  <span key={index} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    {allergen}
+                  </span>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500">Sin alérgenos declarados</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-gray-50 rounded-lg p-6">
+          <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <div className="bg-orange-100 p-2 rounded-lg">
+              <Calendar className="h-4 w-4 text-orange-600" />
+            </div>
+            Temporada
+          </h4>
+          {isEditing ? (
+            <SeasonChips
+              selected={formData.season}
+              onChange={(season) => setFormData({ ...formData, season })}
+            />
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {ingredient?.season && ingredient.season.length > 0 ? (
+                ingredient.season.map((month, index) => (
+                  <span key={index} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    {seasonTranslations[month as keyof typeof seasonTranslations] || month}
+                  </span>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500">Temporada no especificada</p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderSuppliersTab = () => (
+    <div className="space-y-6">
+      <div className="bg-gray-50 rounded-lg p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <div className="bg-orange-100 p-2 rounded-lg">
+              <Building className="h-5 w-5 text-orange-600" />
+            </div>
+            Gestión de Proveedores
+          </h3>
+          
+          {!isNewIngredient && (
+            <button
+              onClick={() => {
+                // Buscar el botón de añadir del SupplierManager y hacer click
+                const addButton = document.querySelector('[data-supplier-add-button]') as HTMLButtonElement
+                if (addButton) {
+                  addButton.click()
+                }
+              }}
+              className="inline-flex items-center text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              <span className="hidden md:inline">Añadir proveedor</span>
+              <span className="md:hidden">Añadir</span>
+            </button>
+          )}
+        </div>
+        
+        {!isNewIngredient ? (
+          <SupplierManager
+            entityId={parseInt(ingredientId)}
+            entityType="ingredient"
+            disabled={false}
+            title=""
+            className="bg-transparent border-0 shadow-none p-0"
+          />
+        ) : (
+          <div className="text-center py-8">
+            <Building className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              Gestión de Proveedores
+            </h3>
+            <p className="text-gray-500">
+              Guarda el ingrediente primero para poder gestionar proveedores
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
   if (loading) {
     return (
       <div className="p-6">
@@ -520,22 +1082,22 @@ export default function IngredientDetailPage() {
     <>
       {/* Mobile Fixed Action Bar */}
       <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 sticky top-[60px] z-40">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center space-x-3 min-w-0 flex-1">
             <button
               onClick={() => router.push('/ingredients')}
-              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-semibold text-gray-900 truncate">
+            <div className="min-w-0 flex-1 pr-2">
+              <h1 className="text-lg font-semibold text-gray-900 leading-tight break-words">
                 {isNewIngredient ? 'Nuevo Ingrediente' : (ingredient?.name || 'Cargando...')}
               </h1>
             </div>
           </div>
           
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-shrink-0">
             {!isNewIngredient && (
               <button
                 onClick={openDeleteModal}
@@ -557,7 +1119,7 @@ export default function IngredientDetailPage() {
             {!isNewIngredient && (
               <button
                 onClick={() => router.push('/ingredients')}
-                className="p-2 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="hidden md:flex p-2 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                 title="Cerrar y volver"
               >
                 <X className="h-4 w-4" />
@@ -643,7 +1205,7 @@ export default function IngredientDetailPage() {
         
 
         {/* Stats Cards siguiendo patrón TotXo */}
-        {ingredient && (
+        {ingredient && !isNewIngredient && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between">
@@ -725,7 +1287,29 @@ export default function IngredientDetailPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Main Content with Tabs */}
+        {!isNewIngredient && (
+          <UnifiedTabs
+            variant="detail"
+            mobileStyle="orange"
+            tabs={[
+              { id: 'general', label: 'Información General', icon: Package },
+              { id: 'stock', label: 'Stock y Gestión', icon: TrendingUp },
+              { id: 'nutrition', label: 'Información Nutricional', icon: Activity },
+              { id: 'suppliers', label: 'Proveedores', icon: Building }
+            ]}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          >
+            {activeTab === 'general' && renderGeneralTab()}
+            {activeTab === 'stock' && renderStockTab()}
+            {activeTab === 'nutrition' && renderNutritionTab()}
+            {activeTab === 'suppliers' && renderSuppliersTab()}
+          </UnifiedTabs>
+        )}
+
+        {/* New ingredient form without tabs */}
+        {isNewIngredient && <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Basic Information */}
@@ -1281,6 +1865,7 @@ export default function IngredientDetailPage() {
             )}
           </div>
         </div>
+        }
       </div>
 
       {/* Delete Confirmation Modal */}

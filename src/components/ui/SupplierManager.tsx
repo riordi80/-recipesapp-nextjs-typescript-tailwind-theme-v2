@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { 
-  Truck, 
+  Building, 
   Plus, 
   ChevronDown, 
   ChevronUp, 
@@ -54,10 +54,10 @@ export default function SupplierManager({
   
   // States
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
-  const [allSuppliers, setAllSuppliers] = useState<Supplier[]>([])
+  // const [allSuppliers, setAllSuppliers] = useState<Supplier[]>([])  // Not used
   const [loading, setLoading] = useState(false)
   const [editingSuppliers, setEditingSuppliers] = useState<Record<number, any>>({})
-  const [expandedSuppliers, setExpandedSuppliers] = useState<Record<number, boolean>>({})
+  const [expandedSupplierId, setExpandedSupplierId] = useState<number | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [supplierToDelete, setSupplierToDelete] = useState<{id: number, name: string} | null>(null)
 
@@ -138,7 +138,7 @@ export default function SupplierManager({
       })
       
       await loadSuppliers()
-      setExpandedSuppliers(prev => ({ ...prev, [supplierId]: true }))
+      setExpandedSupplierId(supplierId)
       setShowAddModal(false)
       success('Proveedor añadido correctamente')
     } catch (err) {
@@ -216,25 +216,45 @@ export default function SupplierManager({
 
   return (
     <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 ${className}`}>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <div className="bg-orange-100 p-2 rounded-lg">
-            <Truck className="h-5 w-5 text-orange-600" />
-          </div>
-          {title}
-        </h3>
-        
-        {!disabled && (
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
-            disabled={loading}
-          >
-            <Plus className="h-4 w-4" />
-            Añadir Proveedor
-          </button>
-        )}
-      </div>
+      {title && (
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <div className="bg-orange-100 p-2 rounded-lg">
+              <Building className="h-5 w-5 text-orange-600" />
+            </div>
+            {title}
+          </h3>
+        </div>
+      )}
+      
+      {title && (
+        <div className="flex items-center justify-between mb-4">
+          <div></div>
+          
+          {!disabled && (
+            <button
+              data-supplier-add-button
+              onClick={() => setShowAddModal(true)}
+              className="inline-flex items-center text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
+              disabled={loading}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              <span className="hidden md:inline">Añadir proveedor</span>
+              <span className="md:hidden">Añadir</span>
+            </button>
+          )}
+        </div>
+      )}
+      
+      {/* Botón oculto para casos sin título */}
+      {!title && (
+        <button
+          data-supplier-add-button
+          onClick={() => setShowAddModal(true)}
+          className="hidden"
+          disabled={loading}
+        />
+      )}
 
       {loading ? (
         <div className="text-center py-8">
@@ -243,21 +263,21 @@ export default function SupplierManager({
         </div>
       ) : suppliers.length === 0 ? (
         <div className="text-center py-8">
-          <Truck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <Building className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-500 mb-4">No hay proveedores asignados</p>
           <p className="text-sm text-gray-400">Añade proveedores para gestionar precios y disponibilidad</p>
         </div>
       ) : (
         <div className="space-y-4">
           {suppliers.map(supplier => {
-            const isExpanded = expandedSuppliers[supplier.supplier_id]
+            const isExpanded = expandedSupplierId === supplier.supplier_id
             const editingData = editingSuppliers[supplier.supplier_id] || {}
             
             return (
               <div key={supplier.supplier_id} className="border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
                 <div 
                   className="p-4 cursor-pointer select-none"
-                  onClick={() => !disabled && setExpandedSuppliers(prev => ({ ...prev, [supplier.supplier_id]: !isExpanded }))}
+                  onClick={() => !disabled && setExpandedSupplierId(isExpanded ? null : supplier.supplier_id)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 flex-1">
@@ -315,7 +335,7 @@ export default function SupplierManager({
                   </div>
                   
                   {isExpanded && !disabled && (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="mt-4 pt-4 border-t border-gray-200" onClick={(e) => e.stopPropagation()}>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-1">

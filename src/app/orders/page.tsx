@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { 
   Truck, 
   Euro, 
-  Package, 
+  Building,
   AlertTriangle, 
   List, 
   History, 
@@ -96,7 +96,7 @@ export default function OrdersPage() {
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
     { id: 'shopping-list', label: 'Lista de Compras', icon: List },
     { id: 'active-orders', label: 'Pedidos Activos', icon: Truck },
-    { id: 'suppliers', label: 'Proveedores', icon: Package },
+    { id: 'suppliers', label: 'Proveedores', icon: Building },
     { id: 'history', label: 'Historial', icon: History },
   ]
 
@@ -401,8 +401,8 @@ export default function OrdersPage() {
         {activeTab === 'suppliers' && (
           <SuppliersSection
             onSupplierClick={(supplierId) => {
-              // TODO: Implement supplier detail view or navigation
-              console.log('Viewing supplier:', supplierId)
+              // Navigate to supplier detail page with orders tab
+              window.location.href = `/suppliers/${supplierId}#orders`
             }}
           />
         )}

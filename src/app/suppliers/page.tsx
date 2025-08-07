@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { 
-  Users, 
+  Building, 
   Plus, 
   Filter, 
   Search, 
@@ -13,12 +13,11 @@ import {
   Eye,
   Edit,
   Trash2,
-  Building,
   Star,
   Clock,
   Package
 } from 'lucide-react'
-import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api'
+import { apiGet, apiDelete } from '@/lib/api'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { useToastHelpers } from '@/context/ToastContext'
 
@@ -41,7 +40,6 @@ interface Supplier {
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   
   // Toast helpers
   const { success, error: showError } = useToastHelpers()
@@ -50,13 +48,16 @@ export default function SuppliersPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [currentSupplier, setCurrentSupplier] = useState<Supplier | null>(null)
   
+  // Search input ref for autofocus
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  
   // Filters
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [showFilters, setShowFilters] = useState(false)
 
   // Stats
-  const [stats, setStats] = useState({
+  const [stats] = useState({
     total: 0,
     active: 0,
     inactive: 0,
@@ -66,7 +67,18 @@ export default function SuppliersPage() {
   // Load suppliers
   useEffect(() => {
     loadSuppliers()
-    loadStats()
+    // loadStats() // TODO: Implementar ruta /suppliers/stats en backend
+  }, [])
+
+  // Autofocus search input on page load
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus()
+      }
+    }, 100) // Pequeño delay para asegurar que el DOM está listo
+    
+    return () => clearTimeout(timer)
   }, [])
 
   const loadSuppliers = async () => {
@@ -74,21 +86,11 @@ export default function SuppliersPage() {
       setLoading(true)
       const response = await apiGet<Supplier[]>('/suppliers')
       setSuppliers(response.data)
-      setError(null)
     } catch (err: unknown) {
-      setError('Error al cargar proveedores')
       console.error('Error loading suppliers:', err)
+      showError('Error al cargar proveedores', 'Error de Carga')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const loadStats = async () => {
-    try {
-      const response = await apiGet('/suppliers/stats')
-      setStats(response.data)
-    } catch (err: unknown) {
-      console.error('Error loading stats:', err)
     }
   }
 
@@ -118,18 +120,20 @@ export default function SuppliersPage() {
     }
   }
 
-  // Filter suppliers locally
-  const filteredSuppliers = suppliers.filter(supplier => {
-    const matchesSearch = (supplier.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (supplier.contact_person || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (supplier.email || '').toLowerCase().includes(searchTerm.toLowerCase())
-    
-    let matchesStatus = true
-    if (statusFilter === 'active') matchesStatus = supplier.active
-    if (statusFilter === 'inactive') matchesStatus = !supplier.active
-    
-    return matchesSearch && matchesStatus
-  })
+  // Filter suppliers locally (memoized)
+  const filteredSuppliers = useMemo(() => {
+    return suppliers.filter(supplier => {
+      const matchesSearch = (supplier.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (supplier.contact_person || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (supplier.email || '').toLowerCase().includes(searchTerm.toLowerCase())
+      
+      let matchesStatus = true
+      if (statusFilter === 'active') matchesStatus = supplier.active
+      if (statusFilter === 'inactive') matchesStatus = !supplier.active
+      
+      return matchesSearch && matchesStatus
+    })
+  }, [suppliers, searchTerm, statusFilter])
 
   if (loading) {
     return (
@@ -149,13 +153,34 @@ export default function SuppliersPage() {
   }
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-8">
+    <>
+      {/* Mobile Header */}
+      <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 sticky top-[60px] z-40">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="bg-orange-100 p-2 rounded-lg">
+              <Building className="h-5 w-5 text-orange-600" />
+            </div>
+            <h1 className="text-lg font-semibold text-gray-900">Proveedores</h1>
+          </div>
+          
+          <Link
+            href="/suppliers/new"
+            className="inline-flex items-center text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            <span className="md:hidden">Añadir</span>
+          </Link>
+        </div>
+      </div>
+
+      <div className="p-6">
+        {/* Desktop Header */}
+        <div className="hidden md:block mb-8">
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center space-x-3 mb-2">
-              <Users className="h-8 w-8 text-orange-600" />
+              <Building className="h-8 w-8 text-orange-600" />
               <h1 className="text-3xl font-bold text-gray-900">Proveedores</h1>
             </div>
             <p className="text-gray-600">
@@ -163,10 +188,13 @@ export default function SuppliersPage() {
             </p>
           </div>
           
-          <button className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors">
+          <Link
+            href="/suppliers/new"
+            className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+          >
             <Plus className="h-5 w-5" />
             <span>Nuevo Proveedor</span>
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -179,7 +207,7 @@ export default function SuppliersPage() {
               <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
             </div>
             <div className="bg-orange-100 p-3 rounded-lg">
-              <Users className="h-6 w-6 text-orange-600" />
+              <Building className="h-6 w-6 text-orange-600" />
             </div>
           </div>
         </div>
@@ -229,6 +257,7 @@ export default function SuppliersPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="Buscar proveedores..."
                 value={searchTerm}
@@ -254,7 +283,7 @@ export default function SuppliersPage() {
               className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <Filter className="h-4 w-4" />
-              <span>Más Filtros</span>
+              <span>Filtros</span>
             </button>
           </div>
         </div>
@@ -402,7 +431,7 @@ export default function SuppliersPage() {
         {/* Empty State */}
         {filteredSuppliers.length === 0 && !loading && (
           <div className="text-center py-12">
-            <Users className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+            <Building className="h-12 w-12 mx-auto text-gray-400 mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               No hay proveedores
             </h3>
@@ -412,9 +441,13 @@ export default function SuppliersPage() {
                 : 'Comienza añadiendo tu primer proveedor'
               }
             </p>
-            <button className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors">
+            <Link
+              href="/suppliers/new"
+              className="inline-flex items-center text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
+            >
+              <Plus className="h-4 w-4 mr-1" />
               Añadir Primer Proveedor
-            </button>
+            </Link>
           </div>
         )}
       </div>
@@ -437,6 +470,7 @@ export default function SuppliersPage() {
         cancelText="Cancelar"
         type="danger"
       />
-    </div>
+      </div>
+    </>
   )
 }

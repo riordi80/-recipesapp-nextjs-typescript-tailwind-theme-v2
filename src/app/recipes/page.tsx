@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { 
   BookOpen, 
@@ -80,6 +80,9 @@ export default function RecipesPage() {
   const [view, setView] = useState<'list' | 'grid'>('list')
   const [isInitialized, setIsInitialized] = useState(false)
   
+  // Search input ref for autofocus  
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  
   // Advanced Filters
   const [searchText, setSearchText] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
@@ -130,6 +133,17 @@ export default function RecipesPage() {
     }
 
     initializeApp()
+  }, [])
+
+  // Autofocus search input on page load
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus()
+      }
+    }, 100) // Pequeño delay para asegurar que el DOM está listo
+    
+    return () => clearTimeout(timer)
   }, [])
 
   // Load filter options from API
@@ -295,10 +309,10 @@ export default function RecipesPage() {
           
           <Link
             href="/recipes/new"
-            className="p-2 bg-orange-600 text-white hover:bg-orange-700 rounded-lg transition-colors"
-            title="Nueva receta"
+            className="inline-flex items-center text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4 mr-1" />
+            <span className="md:hidden">Añadir</span>
           </Link>
         </div>
       </div>
@@ -355,6 +369,7 @@ export default function RecipesPage() {
 
       {/* Advanced Filters */}
       <FilterBar
+        searchInputRef={searchInputRef}
         searchText={searchText}
         onSearchTextChange={setSearchText}
         categoryOptions={filterOptions.categories}
@@ -392,10 +407,10 @@ export default function RecipesPage() {
                     Tiempo
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Porciones
+                    Raciones
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Costo/Porción
+                    Coste/ración
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Acciones
@@ -495,8 +510,9 @@ export default function RecipesPage() {
               </p>
               <Link
                 href="/recipes/new"
-                className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+                className="inline-flex items-center text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
               >
+                <Plus className="h-4 w-4 mr-1" />
                 Crear Primera Receta
               </Link>
             </div>
@@ -565,7 +581,7 @@ export default function RecipesPage() {
                   </Link>
                   <div className="flex space-x-1">
                     <Link 
-                      href={`/recipes/${recipe.recipe_id}/edit`} 
+                      href={`/recipes/${recipe.recipe_id}`} 
                       className="text-orange-600 hover:text-orange-900 p-2 rounded"
                     >
                       <Edit className="h-4 w-4" />
@@ -597,8 +613,9 @@ export default function RecipesPage() {
               </p>
               <Link
                 href="/recipes/new"
-                className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+                className="inline-flex items-center text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
               >
+                <Plus className="h-4 w-4 mr-1" />
                 Crear Primera Receta
               </Link>
             </div>

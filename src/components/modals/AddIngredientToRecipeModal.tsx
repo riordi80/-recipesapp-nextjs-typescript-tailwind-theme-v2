@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search } from 'lucide-react'
+import { Search, Plus, X } from 'lucide-react'
 import { apiGet } from '@/lib/api'
 import FormModal from '@/components/ui/FormModal'
 import { defaultIngredientValues } from '@/constants/forms'
@@ -34,6 +34,7 @@ interface AddIngredientToRecipeModalProps {
   onAdd: (ingredient: RecipeIngredient) => void
   sections: Section[]
   existingIngredients: RecipeIngredient[]
+  onCreateSection?: (sectionName: string) => Promise<Section>
 }
 
 export default function AddIngredientToRecipeModal({ 
@@ -41,12 +42,18 @@ export default function AddIngredientToRecipeModal({
   onClose, 
   onAdd, 
   sections,
-  existingIngredients 
+  existingIngredients,
+  onCreateSection
 }: AddIngredientToRecipeModalProps) {
   const [availableIngredients, setAvailableIngredients] = useState<Ingredient[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(false)
   const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | null>(null)
+  
+  // Estados para crear secciones
+  const [isCreatingSection, setIsCreatingSection] = useState(false)
+  const [newSectionName, setNewSectionName] = useState('')
+  const [creatingSection, setCreatingSection] = useState(false)
   
   // Form data usando constantes exactas del frontend original
   const [formData, setFormData] = useState({
@@ -80,10 +87,33 @@ export default function AddIngredientToRecipeModal({
   const resetForm = () => {
     setSelectedIngredient(null)
     setSearchTerm('')
+    setIsCreatingSection(false)
+    setNewSectionName('')
     setFormData({
       ...defaultIngredientValues,
       section_id: sections.length > 0 ? sections[0].section_id : undefined
     })
+  }
+
+  const handleCreateSection = async () => {
+    if (!newSectionName.trim() || !onCreateSection) return
+    
+    try {
+      setCreatingSection(true)
+      const newSection = await onCreateSection(newSectionName.trim())
+      
+      // Seleccionar automáticamente la nueva sección
+      setFormData({ ...formData, section_id: newSection.section_id })
+      
+      // Limpiar y cerrar el formulario de nueva sección
+      setNewSectionName('')
+      setIsCreatingSection(false)
+    } catch (error) {
+      console.error('Error creating section:', error)
+      alert('Error al crear la sección')
+    } finally {
+      setCreatingSection(false)
+    }
   }
 
   const filteredIngredients = availableIngredients.filter(ingredient =>
@@ -92,11 +122,6 @@ export default function AddIngredientToRecipeModal({
 
   const handleIngredientSelect = (ingredient: Ingredient) => {
     setSelectedIngredient(ingredient)
-    setFormData({
-      ...formData,
-      unit: ingredient.unit || '',
-      base_price: ingredient.cost_per_unit?.toString() || ''
-    })
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -112,19 +137,15 @@ export default function AddIngredientToRecipeModal({
       return
     }
 
-    if (!formData.base_price || parseFloat(formData.base_price) < 0) {
-      alert('El precio debe ser un número válido')
-      return
-    }
 
-    // Formato exacto esperado por el backend (como en el frontend original)
+    // Formato exacto esperado por el backend usando datos del ingrediente seleccionado
     const ingredientData: RecipeIngredient = {
       ingredient_id: selectedIngredient.ingredient_id,
       name: selectedIngredient.name,
       quantity_per_serving: parseFloat(formData.quantity_per_serving),
-      unit: formData.unit,
-      base_price: parseFloat(formData.base_price),
-      waste_percent: parseFloat(formData.waste_percent) / 100, // Convert percentage to decimal (EXACTO del original)
+      unit: selectedIngredient.unit,
+      base_price: selectedIngredient.cost_per_unit || 0,
+      waste_percent: 0, // Default waste percent
       section_id: formData.section_id
     }
 
@@ -138,7 +159,7 @@ export default function AddIngredientToRecipeModal({
       isOpen={isOpen}
       onClose={onClose}
       onSubmit={handleSubmit}
-      title="Añadir Ingrediente a la Receta"
+      title="Añadir ingrediente a la receta"
       size="lg"
       loading={loading}
       submitText="Añadir Ingrediente"
@@ -179,7 +200,7 @@ export default function AddIngredientToRecipeModal({
                 >
                   <div className="font-medium">{ingredient.name}</div>
                   <div className="text-sm text-gray-500">
-                    {ingredient.unit} • {ingredient.cost_per_unit ? `${ingredient.cost_per_unit}€/${ingredient.unit}` : 'Sin precio'}
+                    {ingredient.cost_per_unit ? `${parseFloat(ingredient.cost_per_unit.toString()).toFixed(2).replace('.', ',')}€/${ingredient.unit}` : 'Sin precio'}
                   </div>
                 </button>
               ))
@@ -199,12 +220,64 @@ export default function AddIngredientToRecipeModal({
           </div>
         )}
 
-        {/* Sección (si hay secciones disponibles) */}
-        {sections.length > 0 && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+        {/* Sección */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm font-medium text-gray-700">
               Sección (opcional)
             </label>
+            {onCreateSection && (
+              <button
+                type="button"
+                onClick={() => setIsCreatingSection(true)}
+                className="inline-flex items-center text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Nueva sección
+              </button>
+            )}
+          </div>
+          
+          {isCreatingSection ? (
+            <div className="space-y-3 p-3 border border-orange-200 rounded-lg bg-orange-50">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium text-gray-900">Crear nueva sección</h4>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCreatingSection(false)
+                    setNewSectionName('')
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newSectionName}
+                  onChange={(e) => setNewSectionName(e.target.value)}
+                  placeholder="Nombre de la sección"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleCreateSection()
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateSection}
+                  disabled={!newSectionName.trim() || creatingSection}
+                  className="px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                >
+                  {creatingSection ? 'Creando...' : 'Crear'}
+                </button>
+              </div>
+            </div>
+          ) : (
             <select
               value={formData.section_id || ''}
               onChange={(e) => setFormData({ ...formData, section_id: e.target.value ? parseInt(e.target.value) : undefined })}
@@ -217,71 +290,24 @@ export default function AddIngredientToRecipeModal({
                 </option>
               ))}
             </select>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Datos del ingrediente en la receta */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Cantidad por porción <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.quantity_per_serving}
-              onChange={(e) => setFormData({ ...formData, quantity_per_serving: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder="0.00"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Unidad
-            </label>
-            <input
-              type="text"
-              value={formData.unit}
-              onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder="kg, litros, unidades..."
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Precio por unidad <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.base_price}
-              onChange={(e) => setFormData({ ...formData, base_price: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder="0.00"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Merma (%)
-            </label>
-            <input
-              type="number"
-              step="0.1"
-              min="0"
-              max="100"
-              value={formData.waste_percent}
-              onChange={(e) => setFormData({ ...formData, waste_percent: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder="0"
-            />
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Cantidad por porción <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={formData.quantity_per_serving}
+            onChange={(e) => setFormData({ ...formData, quantity_per_serving: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            placeholder="0.00"
+            required
+          />
         </div>
       </div>
     </FormModal>

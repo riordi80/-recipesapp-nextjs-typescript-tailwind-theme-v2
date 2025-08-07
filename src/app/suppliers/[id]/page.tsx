@@ -9,7 +9,6 @@ import {
   X, 
   Users,
   Building,
-  TrendingUp,
   AlertTriangle,
   CheckCircle,
   Phone,
@@ -19,12 +18,19 @@ import {
   Package,
   Star,
   Clock,
-  Euro,
-  Info
+  Info,
+  Plus,
+  Edit,
+  Trash2 as Trash,
+  FileText,
+  History
 } from 'lucide-react'
 import { apiGet, apiPost, apiDelete, apiPut } from '@/lib/api'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { useToastHelpers } from '@/context/ToastContext'
+import AddSupplierIngredientModal from '@/components/modals/AddSupplierIngredientModal'
+import EditSupplierIngredientModal from '@/components/modals/EditSupplierIngredientModal'
+import UnifiedTabs from '@/components/ui/DetailTabs'
 
 interface Supplier {
   supplier_id: number
@@ -46,6 +52,7 @@ interface Supplier {
 interface SupplierIngredient {
   ingredient_id: number
   ingredient_name: string
+  name?: string  // Backup en caso de que el backend aún use 'name'
   price?: number
   delivery_time?: number
   package_size?: number
@@ -68,8 +75,11 @@ export default function SupplierDetailPage() {
   const [supplier, setSupplier] = useState<Supplier | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isEditing, setIsEditing] = useState(true) // Siempre iniciar en modo edición
+  const [isEditing] = useState(true) // Siempre iniciar en modo edición
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+  
+  // Tabs state
+  const [activeTab, setActiveTab] = useState('general')
   
   // Delete modal state
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
@@ -77,6 +87,12 @@ export default function SupplierDetailPage() {
   // Supplier ingredients
   const [supplierIngredients, setSupplierIngredients] = useState<SupplierIngredient[]>([])
   const [loadingIngredients, setLoadingIngredients] = useState(false)
+  
+  // Ingredient modals
+  const [isAddIngredientOpen, setIsAddIngredientOpen] = useState(false)
+  const [isEditIngredientOpen, setIsEditIngredientOpen] = useState(false)
+  const [isDeleteIngredientOpen, setIsDeleteIngredientOpen] = useState(false)
+  const [selectedIngredient, setSelectedIngredient] = useState<SupplierIngredient | null>(null)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -99,6 +115,14 @@ export default function SupplierDetailPage() {
       initializeNewSupplier()
     }
   }, [supplierId, isNewSupplier])
+
+  // Handle URL hash for direct tab navigation
+  useEffect(() => {
+    const hash = window.location.hash.substring(1) // Remove the #
+    if (hash && ['general', 'ingredients', 'orders'].includes(hash)) {
+      setActiveTab(hash)
+    }
+  }, [])
 
   const initializeNewSupplier = () => {
     setSupplier({
@@ -227,6 +251,56 @@ export default function SupplierDetailPage() {
     }
   }
 
+  // Ingredient CRUD handlers
+  const handleAddIngredient = () => {
+    setSelectedIngredient(null)
+    setIsAddIngredientOpen(true)
+  }
+
+  const handleEditIngredient = (ingredient: SupplierIngredient) => {
+    setSelectedIngredient(ingredient)
+    setIsEditIngredientOpen(true)
+  }
+
+  const handleDeleteIngredient = (ingredient: SupplierIngredient) => {
+    setSelectedIngredient(ingredient)
+    setIsDeleteIngredientOpen(true)
+  }
+
+  const confirmDeleteIngredient = async () => {
+    if (!selectedIngredient) return
+    
+    try {
+      await apiDelete(`/suppliers/${supplierId}/ingredients/${selectedIngredient.ingredient_id}`)
+      await loadSupplierIngredients()
+      success('Ingrediente eliminado correctamente')
+      setIsDeleteIngredientOpen(false)
+    } catch (err) {
+      showError('Error al eliminar el ingrediente')
+      console.error('Error deleting ingredient:', err)
+    }
+  }
+
+  const handleTogglePreferred = async (ingredient: SupplierIngredient) => {
+    try {
+      const payload = {
+        price: ingredient.price || 0,
+        delivery_time: ingredient.delivery_time || null,
+        package_size: ingredient.package_size || 1,
+        package_unit: ingredient.package_unit || 'unidad',
+        minimum_order_quantity: ingredient.minimum_order_quantity || 1,
+        is_preferred_supplier: !ingredient.is_preferred_supplier
+      }
+      
+      await apiPut(`/suppliers/${supplierId}/ingredients/${ingredient.ingredient_id}`, payload)
+      await loadSupplierIngredients()
+      success(`Proveedor ${!ingredient.is_preferred_supplier ? 'marcado como' : 'desmarcado como'} preferido`)
+    } catch (err) {
+      showError('Error al cambiar el estado de proveedor preferido')
+      console.error('Error toggling preferred:', err)
+    }
+  }
+
   // Calculate metrics
   const calculateSupplierMetrics = () => {
     if (!supplier || !supplierIngredients) return null
@@ -271,6 +345,447 @@ export default function SupplierDetailPage() {
     })
   }
 
+  // Tab content renderers
+  const renderGeneralTab = () => (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Main Content */}
+      <div className="lg:col-span-2 space-y-6">
+        {/* Basic Information */}
+        <div className="bg-gray-50 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <div className="bg-orange-100 p-2 rounded-lg">
+              <Building className="h-5 w-5 text-orange-600" />
+            </div>
+            Información Básica
+          </h3>
+          
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nombre del proveedor <span className="text-red-500">*</span>
+                </label>
+                {isEditing ? (
+                  <div>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      placeholder="Nombre del proveedor"
+                    />
+                    {validationErrors.name && (
+                      <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-gray-900">{supplier?.name}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Persona de contacto
+                </label>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={formData.contact_person}
+                    onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="Nombre del contacto"
+                  />
+                ) : (
+                  <p className="text-gray-900">
+                    {supplier?.contact_person || 'Sin contacto especificado'}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Teléfono
+                </label>
+                {isEditing ? (
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="+34 600 000 000"
+                  />
+                ) : (
+                  <p className="text-gray-900">
+                    {supplier?.phone || 'Sin teléfono'}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email
+                </label>
+                {isEditing ? (
+                  <div>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      placeholder="contacto@proveedor.com"
+                    />
+                    {validationErrors.email && (
+                      <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-gray-900">
+                    {supplier?.email || 'Sin email'}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Sitio web
+              </label>
+              {isEditing ? (
+                <div>
+                  <input
+                    type="url"
+                    value={formData.website_url}
+                    onChange={(e) => setFormData({ ...formData, website_url: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="https://www.proveedor.com"
+                  />
+                  {validationErrors.website_url && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.website_url}</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-gray-900">
+                  {supplier?.website_url ? (
+                    <a 
+                      href={supplier.website_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-orange-600 hover:text-orange-700 underline"
+                    >
+                      {supplier.website_url}
+                    </a>
+                  ) : (
+                    'Sin sitio web'
+                  )}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Dirección
+              </label>
+              {isEditing ? (
+                <textarea
+                  rows={3}
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="Dirección completa del proveedor..."
+                />
+              ) : (
+                <p className="text-gray-900">
+                  {supplier?.address || 'Sin dirección especificada'}
+                </p>
+              )}
+            </div>
+
+            {/* Active checkbox */}
+            {isEditing && (
+              <div className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  id="active"
+                  checked={formData.active}
+                  onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
+                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                />
+                <label htmlFor="active" className="text-sm font-medium text-gray-700">
+                  Proveedor activo
+                </label>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Sidebar */}
+      <div className="space-y-6">
+        {/* Contact Information */}
+        {supplier && !isNewSupplier && (
+          <div className="bg-gray-50 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <div className="bg-orange-100 p-2 rounded-lg">
+                <Users className="h-5 w-5 text-orange-600" />
+              </div>
+              Información de Contacto
+            </h3>
+            
+            <div className="space-y-4">
+              {supplier?.phone && (
+                <div className="flex items-center space-x-3">
+                  <Phone className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm text-gray-900">{supplier.phone}</span>
+                </div>
+              )}
+              
+              {supplier?.email && (
+                <div className="flex items-center space-x-3">
+                  <Mail className="h-4 w-4 text-gray-400" />
+                  <a 
+                    href={`mailto:${supplier.email}`}
+                    className="text-sm text-orange-600 hover:text-orange-700"
+                  >
+                    {supplier.email}
+                  </a>
+                </div>
+              )}
+              
+              {supplier?.website_url && (
+                <div className="flex items-center space-x-3">
+                  <Globe className="h-4 w-4 text-gray-400" />
+                  <a 
+                    href={supplier.website_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-orange-600 hover:text-orange-700 truncate"
+                  >
+                    Visitar sitio web
+                  </a>
+                </div>
+              )}
+              
+              {supplier?.address && (
+                <div className="flex items-start space-x-3">
+                  <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                  <span className="text-sm text-gray-900">{supplier.address}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Notes */}
+        <div className="bg-gray-50 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <div className="bg-orange-100 p-2 rounded-lg">
+              <FileText className="h-5 w-5 text-orange-600" />
+            </div>
+            Notas
+          </h3>
+          
+          {isEditing ? (
+            <textarea
+              rows={4}
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              placeholder="Notas adicionales sobre el proveedor..."
+            />
+          ) : (
+            <p className="text-sm text-gray-900">
+              {supplier?.notes || 'Sin notas adicionales'}
+            </p>
+          )}
+        </div>
+
+        {/* Additional Info */}
+        {supplier && !isEditing && (
+          <div className="bg-gray-50 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <div className="bg-orange-100 p-2 rounded-lg">
+                <Info className="h-5 w-5 text-orange-600" />
+              </div>
+              Información Adicional
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Estado:</span>
+                <span className={`text-sm font-medium ${supplier.active ? 'text-green-600' : 'text-red-600'}`}>
+                  {supplier.active ? 'Activo' : 'Inactivo'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Creado:</span>
+                <span className="text-sm font-medium text-gray-900">
+                  {formatDate(supplier.created_at)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Actualizado:</span>
+                <span className="text-sm font-medium text-gray-900">
+                  {formatDate(supplier.updated_at)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  const renderIngredientsTab = () => (
+    <div className="space-y-6">
+      <div className="bg-gray-50 rounded-lg p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <div className="bg-orange-100 p-2 rounded-lg">
+              <Package className="h-5 w-5 text-orange-600" />
+            </div>
+            Ingredientes Suministrados
+          </h3>
+          <button
+            onClick={handleAddIngredient}
+            className="inline-flex items-center text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            <span className="hidden md:inline">Añadir ingrediente</span>
+            <span className="md:hidden">Añadir</span>
+          </button>
+        </div>
+      
+      {loadingIngredients ? (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto"></div>
+          <p className="text-gray-500 mt-2">Cargando ingredientes...</p>
+        </div>
+      ) : supplierIngredients.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Ingrediente
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Precio
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Entrega
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Estado
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {supplierIngredients.map((ingredient) => (
+                <tr key={ingredient.ingredient_id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">
+                      {ingredient.ingredient_name || ingredient.name || '[Nombre no disponible]'}
+                    </div>
+                    {ingredient.package_size && (
+                      <div className="text-sm text-gray-500">
+                        Paquete: {ingredient.package_size} {ingredient.package_unit}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">
+                      {ingredient.price ? formatCurrency(ingredient.price, 4) : 'Sin precio'}
+                    </div>
+                    {ingredient.minimum_order_quantity && (
+                      <div className="text-sm text-gray-500">
+                        Mín: {ingredient.minimum_order_quantity}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">
+                      {ingredient.delivery_time ? `${ingredient.delivery_time} días` : 'No especificado'}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <button
+                      onClick={() => handleTogglePreferred(ingredient)}
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                        ingredient.is_preferred_supplier 
+                          ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' 
+                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                      }`}
+                      title={ingredient.is_preferred_supplier ? 'Quitar como preferido' : 'Marcar como preferido'}
+                    >
+                      <Star className={`h-3 w-3 mr-1 ${ingredient.is_preferred_supplier ? 'fill-current' : ''}`} />
+                      {ingredient.is_preferred_supplier ? 'Preferido' : 'Normal'}
+                    </button>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <div className="flex items-center justify-end space-x-2">
+                      <button
+                        onClick={() => handleEditIngredient(ingredient)}
+                        className="text-orange-600 hover:text-orange-900 p-1 rounded transition-colors"
+                        title="Editar ingrediente"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteIngredient(ingredient)}
+                        className="text-red-600 hover:text-red-900 p-1 rounded transition-colors"
+                        title="Eliminar ingrediente"
+                      >
+                        <Trash className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="text-center py-8">
+          <Package className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Sin ingredientes asignados
+          </h3>
+          <p className="text-gray-500">
+            Este proveedor aún no tiene ingredientes asignados
+          </p>
+        </div>
+      )}
+      </div>
+    </div>
+  )
+
+  const renderOrdersHistoryTab = () => (
+    <div className="space-y-6">
+      <div className="bg-gray-50 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="bg-orange-100 p-2 rounded-lg">
+            <History className="h-5 w-5 text-orange-600" />
+          </div>
+          Historial de Pedidos
+        </h3>
+        
+        <div className="text-center py-12">
+          <History className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Historial de Pedidos
+          </h3>
+          <p className="text-gray-500">
+            Esta funcionalidad se implementará próximamente
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+
   if (loading) {
     return (
       <div className="p-6">
@@ -301,22 +816,22 @@ export default function SupplierDetailPage() {
     <>
       {/* Mobile Fixed Action Bar */}
       <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 sticky top-[60px] z-40">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center space-x-3 min-w-0 flex-1">
             <button
               onClick={() => router.push('/suppliers')}
-              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-semibold text-gray-900 truncate">
+            <div className="min-w-0 flex-1 pr-2">
+              <h1 className="text-lg font-semibold text-gray-900 leading-tight break-words">
                 {isNewSupplier ? 'Nuevo Proveedor' : (supplier?.name || 'Cargando...')}
               </h1>
             </div>
           </div>
           
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-shrink-0">
             {!isNewSupplier && (
               <button
                 onClick={openDeleteModal}
@@ -338,7 +853,7 @@ export default function SupplierDetailPage() {
             {!isNewSupplier && (
               <button
                 onClick={() => router.push('/suppliers')}
-                className="p-2 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="hidden md:flex p-2 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                 title="Cerrar y volver"
               >
                 <X className="h-4 w-4" />
@@ -419,7 +934,7 @@ export default function SupplierDetailPage() {
         )}
 
         {/* Stats Cards siguiendo patrón TotXo */}
-        {supplier && (
+        {supplier && !isNewSupplier && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between">
@@ -494,380 +1009,27 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Basic Information */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <div className="bg-orange-100 p-2 rounded-lg">
-                  <Building className="h-5 w-5 text-orange-600" />
-                </div>
-                Información Básica
-              </h3>
-              
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Nombre del proveedor <span className="text-red-500">*</span>
-                    </label>
-                    {isEditing ? (
-                      <div>
-                        <input
-                          type="text"
-                          value={formData.name}
-                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                          placeholder="Nombre del proveedor"
-                        />
-                        {validationErrors.name && (
-                          <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-gray-900">{supplier?.name}</p>
-                    )}
-                  </div>
+        {/* Tabs Section */}
+        {!isNewSupplier && (
+          <UnifiedTabs
+            variant="detail"
+            mobileStyle="orange"
+            tabs={[
+              { id: 'general', label: 'Información General', icon: Building },
+              { id: 'ingredients', label: 'Ingredientes', icon: Package },
+              { id: 'orders', label: 'Historial de Pedidos', icon: History }
+            ]}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          >
+            {activeTab === 'general' && renderGeneralTab()}
+            {activeTab === 'ingredients' && renderIngredientsTab()}
+            {activeTab === 'orders' && renderOrdersHistoryTab()}
+          </UnifiedTabs>
+        )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Persona de contacto
-                    </label>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={formData.contact_person}
-                        onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        placeholder="Nombre del contacto"
-                      />
-                    ) : (
-                      <p className="text-gray-900">
-                        {supplier?.contact_person || 'Sin contacto especificado'}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Teléfono
-                    </label>
-                    {isEditing ? (
-                      <input
-                        type="tel"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        placeholder="+34 600 000 000"
-                      />
-                    ) : (
-                      <p className="text-gray-900">
-                        {supplier?.phone || 'Sin teléfono'}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email
-                    </label>
-                    {isEditing ? (
-                      <div>
-                        <input
-                          type="email"
-                          value={formData.email}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                          placeholder="contacto@proveedor.com"
-                        />
-                        {validationErrors.email && (
-                          <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-gray-900">
-                        {supplier?.email || 'Sin email'}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Sitio web
-                  </label>
-                  {isEditing ? (
-                    <div>
-                      <input
-                        type="url"
-                        value={formData.website_url}
-                        onChange={(e) => setFormData({ ...formData, website_url: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        placeholder="https://www.proveedor.com"
-                      />
-                      {validationErrors.website_url && (
-                        <p className="mt-1 text-sm text-red-600">{validationErrors.website_url}</p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-gray-900">
-                      {supplier?.website_url ? (
-                        <a 
-                          href={supplier.website_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-orange-600 hover:text-orange-700 underline"
-                        >
-                          {supplier.website_url}
-                        </a>
-                      ) : (
-                        'Sin sitio web'
-                      )}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Dirección
-                  </label>
-                  {isEditing ? (
-                    <textarea
-                      rows={3}
-                      value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                      placeholder="Dirección completa del proveedor..."
-                    />
-                  ) : (
-                    <p className="text-gray-900">
-                      {supplier?.address || 'Sin dirección especificada'}
-                    </p>
-                  )}
-                </div>
-
-                {/* Active checkbox */}
-                {isEditing && (
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="checkbox"
-                      id="active"
-                      checked={formData.active}
-                      onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
-                      className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                    />
-                    <label htmlFor="active" className="text-sm font-medium text-gray-700">
-                      Proveedor activo
-                    </label>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Supplier Ingredients */}
-            {!isNewSupplier && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <div className="bg-orange-100 p-2 rounded-lg">
-                    <Package className="h-5 w-5 text-orange-600" />
-                  </div>
-                  Ingredientes Suministrados
-                </h3>
-                
-                {loadingIngredients ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto"></div>
-                    <p className="text-gray-500 mt-2">Cargando ingredientes...</p>
-                  </div>
-                ) : supplierIngredients.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Ingrediente
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Precio
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Entrega
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Estado
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {supplierIngredients.map((ingredient) => (
-                          <tr key={ingredient.ingredient_id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">
-                                {ingredient.ingredient_name}
-                              </div>
-                              {ingredient.package_size && (
-                                <div className="text-sm text-gray-500">
-                                  Paquete: {ingredient.package_size} {ingredient.package_unit}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {ingredient.price ? formatCurrency(ingredient.price, 4) : 'Sin precio'}
-                              </div>
-                              {ingredient.minimum_order_quantity && (
-                                <div className="text-sm text-gray-500">
-                                  Mín: {ingredient.minimum_order_quantity}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {ingredient.delivery_time ? `${ingredient.delivery_time} días` : 'No especificado'}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              {ingredient.is_preferred_supplier && (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                  <Star className="h-3 w-3 mr-1" />
-                                  Preferido
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <Package className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
-                      Sin ingredientes asignados
-                    </h3>
-                    <p className="text-gray-500">
-                      Este proveedor aún no tiene ingredientes asignados
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Contact Information */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <div className="bg-orange-100 p-2 rounded-lg">
-                  <Users className="h-5 w-5 text-orange-600" />
-                </div>
-                Información de Contacto
-              </h3>
-              
-              <div className="space-y-4">
-                {supplier?.phone && (
-                  <div className="flex items-center space-x-3">
-                    <Phone className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm text-gray-900">{supplier.phone}</span>
-                  </div>
-                )}
-                
-                {supplier?.email && (
-                  <div className="flex items-center space-x-3">
-                    <Mail className="h-4 w-4 text-gray-400" />
-                    <a 
-                      href={`mailto:${supplier.email}`}
-                      className="text-sm text-orange-600 hover:text-orange-700"
-                    >
-                      {supplier.email}
-                    </a>
-                  </div>
-                )}
-                
-                {supplier?.website_url && (
-                  <div className="flex items-center space-x-3">
-                    <Globe className="h-4 w-4 text-gray-400" />
-                    <a 
-                      href={supplier.website_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-orange-600 hover:text-orange-700 truncate"
-                    >
-                      Visitar sitio web
-                    </a>
-                  </div>
-                )}
-                
-                {supplier?.address && (
-                  <div className="flex items-start space-x-3">
-                    <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                    <span className="text-sm text-gray-900">{supplier.address}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <div className="bg-orange-100 p-2 rounded-lg">
-                  <Info className="h-5 w-5 text-orange-600" />
-                </div>
-                Notas
-              </h3>
-              
-              {isEditing ? (
-                <textarea
-                  rows={4}
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  placeholder="Notas adicionales sobre el proveedor..."
-                />
-              ) : (
-                <p className="text-sm text-gray-900">
-                  {supplier?.notes || 'Sin notas adicionales'}
-                </p>
-              )}
-            </div>
-
-            {/* Additional Info */}
-            {supplier && !isEditing && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <div className="bg-orange-100 p-2 rounded-lg">
-                    <Info className="h-5 w-5 text-orange-600" />
-                  </div>
-                  Información Adicional
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Estado:</span>
-                    <span className={`text-sm font-medium ${supplier.active ? 'text-green-600' : 'text-red-600'}`}>
-                      {supplier.active ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Creado:</span>
-                    <span className="text-sm font-medium text-gray-900">
-                      {formatDate(supplier.created_at)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Actualizado:</span>
-                    <span className="text-sm font-medium text-gray-900">
-                      {formatDate(supplier.updated_at)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        {/* New supplier form without tabs */}
+        {isNewSupplier && renderGeneralTab()}
       </div>
 
       {/* Delete Confirmation Modal */}
@@ -880,6 +1042,36 @@ export default function SupplierDetailPage() {
         confirmText="Eliminar"
         cancelText="Cancelar"
         type="danger"
+      />
+
+      {/* Delete Ingredient Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isDeleteIngredientOpen}
+        onClose={() => setIsDeleteIngredientOpen(false)}
+        onConfirm={confirmDeleteIngredient}
+        title="Confirmar eliminación"
+        message={`¿Seguro que deseas eliminar "${selectedIngredient?.ingredient_name || selectedIngredient?.name || 'este ingrediente'}" de este proveedor?`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        type="danger"
+      />
+
+      {/* Add Ingredient Modal */}
+      <AddSupplierIngredientModal
+        isOpen={isAddIngredientOpen}
+        onClose={() => setIsAddIngredientOpen(false)}
+        supplierId={supplierId}
+        supplierName={supplier?.name || ''}
+        onSave={loadSupplierIngredients}
+      />
+
+      {/* Edit Ingredient Modal */}
+      <EditSupplierIngredientModal
+        isOpen={isEditIngredientOpen}
+        onClose={() => setIsEditIngredientOpen(false)}
+        supplierId={supplierId}
+        ingredient={selectedIngredient}
+        onSave={loadSupplierIngredients}
       />
     </>
   )
