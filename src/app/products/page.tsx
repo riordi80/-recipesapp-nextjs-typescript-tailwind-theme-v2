@@ -76,8 +76,7 @@ export default function ProductosPage() {
 
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Link
-                    href="https://recipes.ordidev.com"
-                    target="_blank"
+                    href="#"
                     className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                   >
                     Ver Demo <ArrowRight className="h-4 w-4" />
